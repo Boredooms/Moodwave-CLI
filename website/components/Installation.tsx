@@ -94,9 +94,9 @@ export default function Installation() {
               </div>
             </FadeIn>
 
-            <div className="space-y-3">
+            <div className="space-y-3 w-full min-w-0">
               {current.commands.map((cmd, i) => (
-                <FadeIn key={cmd.label} delay={0.35 + i * 0.08} y={15}>
+                <FadeIn key={cmd.label} delay={0.35 + i * 0.08} y={15} className="w-full min-w-0">
                   <CommandBlock label={cmd.label} prompt={cmd.prompt} command={cmd.command} />
                 </FadeIn>
               ))}

@@ -57,8 +57,8 @@ export default function Hero({ version = "v1.0.1" }: { version?: string }) {
               </p>
             </FadeIn>
 
-            <FadeIn delay={1.6} y={15}>
-              <div className="space-y-3 max-w-lg">
+            <FadeIn delay={1.6} y={15} className="w-full min-w-0">
+              <div className="space-y-3 max-w-lg w-full min-w-0">
                 <CommandBlock
                   label="macOS / Linux"
                   command="curl -fsSL https://raw.githubusercontent.com/Boredooms/Moodwave-CLI/main/cli/scripts/install.sh | bash"

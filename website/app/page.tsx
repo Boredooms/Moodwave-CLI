@@ -11,19 +11,22 @@ import CTA from "../components/CTA";
 
 async function getLatestVersion() {
   try {
-    // Fetch latest release tag name dynamically from GitHub API at build/render time
-    // Next.js cache keeps this optimized for 1 hour to prevent hitting API rate limits
-    const res = await fetch("https://api.github.com/repos/Boredooms/Moodwave-CLI/releases/latest", {
+    // Fetch repository tags directly from GitHub API
+    // This allows immediate tracking of pushed tags (e.g. v1.0.0) without waiting for release assets build
+    const res = await fetch("https://api.github.com/repos/Boredooms/Moodwave-CLI/tags", {
       next: { revalidate: 3600 },
       headers: {
         "User-Agent": "Moodwave-Website-Builder"
       }
     });
-    if (!res.ok) return "v1.0.1";
-    const data = await res.json();
-    return data.tag_name || "v1.0.1";
+    if (!res.ok) return "v1.0.0";
+    const tags = await res.json();
+    if (tags && tags.length > 0) {
+      return tags[0].name || "v1.0.0";
+    }
+    return "v1.0.0";
   } catch (e) {
-    return "v1.0.1";
+    return "v1.0.0";
   }
 }
 

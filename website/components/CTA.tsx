@@ -28,14 +28,14 @@ export default function CTA({ version = "v1.0.1" }: { version?: string }) {
               </p>
             </FadeIn>
 
-            <div className="max-w-lg mx-auto space-y-3 relative">
-              <FadeIn delay={0.65} y={15}>
+            <div className="max-w-lg mx-auto space-y-3 relative w-full min-w-0">
+              <FadeIn delay={0.65} y={15} className="w-full min-w-0">
                 <CommandBlock
                   label="macOS / Linux"
                   command="curl -fsSL https://raw.githubusercontent.com/Boredooms/Moodwave-CLI/main/cli/scripts/install.sh | bash"
                 />
               </FadeIn>
-              <FadeIn delay={0.73} y={15}>
+              <FadeIn delay={0.73} y={15} className="w-full min-w-0">
                 <CommandBlock
                   label="Windows (PowerShell)"
                   prompt="PS>"

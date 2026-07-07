@@ -23,14 +23,20 @@ export default function CommandBlock({ command, label, prompt = "$" }: CommandBl
       {label && (
         <p className="text-xs text-[#555] font-mono uppercase tracking-widest mb-2">{label}</p>
       )}
-      <div className="code-block w-full min-w-0 overflow-hidden group-hover:border-white/[0.12] transition-colors duration-300">
-        <div className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
-          <span className="text-[#555] font-mono text-sm flex-shrink-0">{prompt}</span>
-          <code className="text-[#c9c9c9] font-mono text-sm truncate block flex-1 min-w-0">{command}</code>
+      <div className="code-block w-full min-w-0 group-hover:border-white/[0.12] transition-colors duration-300 flex items-center justify-between">
+        {/* Scrollable command container */}
+        <div 
+          className="flex items-center gap-3 min-w-0 flex-1 overflow-x-auto pr-3 scrollbar-none"
+          style={{ scrollbarWidth: "none" }} // Firefox
+        >
+          <span className="text-[#555] font-mono text-sm flex-shrink-0 select-none">{prompt}</span>
+          <code className="text-[#c9c9c9] font-mono text-sm whitespace-nowrap">{command}</code>
         </div>
+        
+        {/* Copy button - stays pinned to the right */}
         <button
           onClick={handleCopy}
-          className="flex-shrink-0 flex items-center gap-1.5 text-xs font-mono text-[#555] hover:text-white transition-colors duration-200 cursor-pointer ml-3"
+          className="flex-shrink-0 flex items-center gap-1.5 text-xs font-mono text-[#555] hover:text-white transition-colors duration-200 cursor-pointer select-none bg-[#0d0d0d] pl-2"
           aria-label="Copy command"
         >
           <AnimatePresence mode="wait">
