@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── CLI Build & Test ─────────────────────────────────────────────────────────
+  cli:
+    name: CLI — Build & Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+          cache-dependency-path: cli/go.sum
+
+      - name: Build (native)
+        working-directory: cli
+        run: go build ./cmd/moodwave
+
+      - name: Vet
+        working-directory: cli
+        run: go vet ./...
+
+      - name: Test
+        working-directory: cli
+        run: go test ./... -timeout 60s
+        continue-on-error: true   # tests may need audio deps
+
+  # ── Cross-compile smoke test ─────────────────────────────────────────────────
+  cross-compile:
+    name: Cross-compile all platforms
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+          cache-dependency-path: cli/go.sum
+
+      - name: Cross-compile
+        working-directory: cli
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          for target in \
+            "linux/amd64" "linux/arm64" "linux/arm" \
+            "darwin/amd64" "darwin/arm64" \
+            "windows/amd64" "windows/arm64"
+          do
+            GOOS="${target%/*}"
+            GOARCH="${target#*/}"
+            EXT=""
+            [ "$GOOS" = "windows" ] && EXT=".exe"
+            echo "Building $GOOS/$GOARCH..."
+            GOOS=$GOOS GOARCH=$GOARCH go build \
+              -ldflags "-s -w -X github.com/moodwave/moodwave/internal/config.Version=ci-test" \
+              -o /tmp/moodwave-${GOOS}-${GOARCH}${EXT} \
+              ./cmd/moodwave
+            echo "  ✓ $(ls -lh /tmp/moodwave-${GOOS}-${GOARCH}${EXT} | awk '{print $5}')"
+          done
+
+  # ── Website Build ────────────────────────────────────────────────────────────
+  website:
+    name: Website — Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1

@@ -1,6 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
+import SplitText from "./ui/SplitText";
+import FadeIn from "./ui/FadeIn";
 
 const layers = [
   { name: "Scanner", desc: "Walks the file tree, extracts language composition, TODO/FIXME density, git metadata, and dependency manifest signals." },
@@ -16,39 +17,42 @@ export default function Architecture() {
     <section className="divider section-pad" id="architecture">
       <div className="container-page">
         <div className="grid lg:grid-cols-[240px_1fr] gap-12 lg:gap-20">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.55 }}
-          >
-            <p className="font-mono text-xs text-[#444] uppercase tracking-[0.2em] mb-5">Architecture</p>
-            <h2 className="font-mono font-semibold text-white leading-tight" style={{ fontSize: "clamp(1.4rem, 2.5vw, 2rem)", letterSpacing: "-0.025em" }}>
-              Six layers.<br />Clean separation.
-            </h2>
-            <p className="text-sm text-[#555] mt-4 leading-relaxed">
-              Every component is independently replaceable.
+          <div>
+            <p className="font-mono text-xs text-[#444] uppercase tracking-[0.2em] mb-5">
+              <SplitText text="Architecture" by="chars" delay={0.1} />
             </p>
-          </motion.div>
+            <h2 className="font-mono font-semibold text-white leading-tight" style={{ fontSize: "clamp(1.4rem, 2.5vw, 2rem)", letterSpacing: "-0.025em" }}>
+              <SplitText text="Six layers." by="words" delay={0.25} />
+              <br />
+              <SplitText text="Clean separation." by="words" delay={0.4} />
+            </h2>
+            <FadeIn delay={0.55} y={15}>
+              <p className="text-sm text-[#555] mt-4 leading-relaxed">
+                Every component is independently replaceable.
+              </p>
+            </FadeIn>
+          </div>
 
           <div className="border border-white/[0.07] rounded-lg overflow-hidden">
             {layers.map((layer, i) => (
-              <motion.div
+              <FadeIn
                 key={layer.name}
-                initial={{ opacity: 0, x: 16 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, margin: "-40px" }}
-                transition={{ duration: 0.45, delay: i * 0.08, ease: [0.22, 1, 0.36, 1] }}
-                className={`flex items-start gap-6 p-6 group hover:bg-[#111] transition-colors duration-200 ${i < layers.length - 1 ? "border-b border-white/[0.06]" : ""}`}
+                delay={0.1 + i * 0.08}
+                y={15}
+                className="w-full"
               >
-                <div className="font-mono text-xs text-[#2a2a2a] pt-0.5 w-6 flex-shrink-0 group-hover:text-[#555] transition-colors">
-                  {String(i + 1).padStart(2, "0")}
+                <div
+                  className={`flex items-start gap-6 p-6 group hover:bg-[#111] transition-colors duration-200 ${i < layers.length - 1 ? "border-b border-white/[0.06]" : ""}`}
+                >
+                  <div className="font-mono text-xs text-[#2a2a2a] pt-0.5 w-6 flex-shrink-0 group-hover:text-[#555] transition-colors">
+                    {String(i + 1).padStart(2, "0")}
+                  </div>
+                  <div className="min-w-[130px] flex-shrink-0">
+                    <span className="font-mono text-sm font-semibold text-[#999] group-hover:text-white transition-colors">{layer.name}</span>
+                  </div>
+                  <p className="text-sm text-[#555] leading-relaxed group-hover:text-[#777] transition-colors">{layer.desc}</p>
                 </div>
-                <div className="min-w-[130px] flex-shrink-0">
-                  <span className="font-mono text-sm font-semibold text-[#999] group-hover:text-white transition-colors">{layer.name}</span>
-                </div>
-                <p className="text-sm text-[#555] leading-relaxed group-hover:text-[#777] transition-colors">{layer.desc}</p>
-              </motion.div>
+              </FadeIn>
             ))}
           </div>
         </div>

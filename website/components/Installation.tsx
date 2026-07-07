@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import CommandBlock from "./ui/CommandBlock";
+import SplitText from "./ui/SplitText";
+import FadeIn from "./ui/FadeIn";
 
 const tabs = [
   {
@@ -37,68 +38,76 @@ export default function Installation() {
     <section className="divider section-pad" id="install">
       <div className="container-page">
         <div className="grid lg:grid-cols-[240px_1fr] gap-12 lg:gap-20">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.55 }}
-          >
-            <p className="font-mono text-xs text-[#444] uppercase tracking-[0.2em] mb-5">Installation</p>
-            <h2 className="font-mono font-semibold text-white leading-tight" style={{ fontSize: "clamp(1.4rem, 2.5vw, 2rem)", letterSpacing: "-0.025em" }}>
-              One command.<br />Any platform.
-            </h2>
-            <p className="text-sm text-[#555] mt-4 leading-relaxed">
-              Pre-compiled binaries for every major OS and CPU. No Go runtime, no build step.
+          <div>
+            <p className="font-mono text-xs text-[#444] uppercase tracking-[0.2em] mb-5">
+              <SplitText text="Installation" by="chars" delay={0.1} />
             </p>
+            <h2 className="font-mono font-semibold text-white leading-tight" style={{ fontSize: "clamp(1.4rem, 2.5vw, 2rem)", letterSpacing: "-0.025em" }}>
+              <SplitText text="One command." by="words" delay={0.25} />
+              <br />
+              <SplitText text="Any platform." by="words" delay={0.4} />
+            </h2>
+            <FadeIn delay={0.55} y={15}>
+              <p className="text-sm text-[#555] mt-4 leading-relaxed">
+                Pre-compiled binaries for every major OS and CPU. No Go runtime, no build step.
+              </p>
+            </FadeIn>
 
             <div className="mt-8 space-y-2.5">
-              <p className="font-mono text-xs text-[#333] uppercase tracking-widest mb-3">Supported</p>
-              {["Windows amd64 / arm64", "macOS Intel / Apple Silicon", "Linux amd64 / arm64 / arm"].map((p) => (
-                <div key={p} className="flex items-center gap-3">
-                  <span className="w-1 h-1 bg-[#444] rounded-full flex-shrink-0" />
-                  <span className="font-mono text-xs text-[#666]">{p}</span>
-                </div>
+              <FadeIn delay={0.6} y={10}>
+                <p className="font-mono text-xs text-[#333] uppercase tracking-widest mb-3">Supported</p>
+              </FadeIn>
+              {["Windows amd64 / arm64", "macOS Intel / Apple Silicon", "Linux amd64 / arm64 / arm"].map((p, i) => (
+                <FadeIn key={p} delay={0.65 + i * 0.05} y={5}>
+                  <div className="flex items-center gap-3">
+                    <span className="w-1 h-1 bg-[#444] rounded-full flex-shrink-0" />
+                    <span className="font-mono text-xs text-[#666]">{p}</span>
+                  </div>
+                </FadeIn>
               ))}
             </div>
 
-            <div className="mt-8">
-              <a href="https://github.com/Boredooms/Moodwave-CLI/releases" target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-[#555] hover:text-white transition-colors">
-                Browse all releases ↗
-              </a>
-            </div>
-          </motion.div>
+            <FadeIn delay={0.8} y={10}>
+              <div className="mt-8">
+                <a href="https://github.com/Boredooms/Moodwave-CLI/releases" target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-[#555] hover:text-white transition-colors">
+                  Browse all releases ↗
+                </a>
+              </div>
+            </FadeIn>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, x: 16 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.55, delay: 0.12 }}
-          >
+          <div>
             {/* Tabs */}
-            <div className="flex gap-0 border border-white/[0.07] rounded-lg overflow-hidden mb-6 w-fit">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`font-mono text-xs px-5 py-2.5 cursor-pointer transition-colors duration-200 border-r border-white/[0.07] last:border-r-0 ${
-                    activeTab === tab.id ? "bg-white/[0.08] text-white" : "text-[#555] hover:text-[#888]"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            <FadeIn delay={0.25} y={15}>
+              <div className="flex gap-0 border border-white/[0.07] rounded-lg overflow-hidden mb-6 w-fit">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`font-mono text-xs px-5 py-2.5 cursor-pointer transition-colors duration-200 border-r border-white/[0.07] last:border-r-0 ${
+                      activeTab === tab.id ? "bg-white/[0.08] text-white" : "text-[#555] hover:text-[#888]"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </FadeIn>
 
             <div className="space-y-3">
-              {current.commands.map((cmd) => (
-                <CommandBlock key={cmd.label} label={cmd.label} prompt={cmd.prompt} command={cmd.command} />
+              {current.commands.map((cmd, i) => (
+                <FadeIn key={cmd.label} delay={0.35 + i * 0.08} y={15}>
+                  <CommandBlock label={cmd.label} prompt={cmd.prompt} command={cmd.command} />
+                </FadeIn>
               ))}
             </div>
 
-            <p className="font-mono text-xs text-[#444] mt-6">
-              Run <span className="text-[#666]">moodwave doctor</span> after install to verify everything is working.
-            </p>
-          </motion.div>
+            <FadeIn delay={0.6} y={10}>
+              <p className="font-mono text-xs text-[#444] mt-6">
+                Run <span className="text-[#666]">moodwave doctor</span> after install to verify everything is working.
+              </p>
+            </FadeIn>
+          </div>
         </div>
       </div>
     </section>

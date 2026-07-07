@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
 import { JetBrains_Mono, Inter } from "next/font/google";
+import LenisProvider from "../components/LenisProvider";
 import "./globals.css";
 
 const inter = Inter({
@@ -38,7 +38,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="bg-bg text-primary antialiased">{children}</body>
+      <body style={{ background: "#080808", color: "#fff", overflowX: "hidden" }}>
+        <LenisProvider>{children}</LenisProvider>
+      </body>
     </html>
   );
 }

@@ -13,30 +13,38 @@ jobs:
     name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - goos: windows
             goarch: amd64
             ext: .exe
+            name: windows-amd64
           - goos: windows
             goarch: arm64
             ext: .exe
+            name: windows-arm64
           - goos: linux
             goarch: amd64
             ext: ""
+            name: linux-amd64
           - goos: linux
             goarch: arm64
             ext: ""
+            name: linux-arm64
           - goos: linux
             goarch: arm
             goarm: "7"
             ext: ""
+            name: linux-armv7
           - goos: darwin
             goarch: amd64
             ext: ""
+            name: darwin-amd64
           - goos: darwin
             goarch: arm64
             ext: ""
+            name: darwin-arm64
 
     steps:
       - name: Checkout
@@ -46,6 +54,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+          cache: true
           cache-dependency-path: cli/go.sum
 
       - name: Build binary
@@ -56,34 +65,97 @@ jobs:
           GOARM: ${{ matrix.goarm || '' }}
           CGO_ENABLED: "0"
         run: |
-          BINARY_NAME="moodwave-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
-          go build -ldflags "-s -w -X main.version=${{ github.ref_name }}" \
+          mkdir -p ../dist
+          BINARY_NAME="moodwave-${{ matrix.name }}${{ matrix.ext }}"
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          go build \
+            -ldflags "-s -w \
+              -X github.com/moodwave/moodwave/internal/config.Version=${{ github.ref_name }} \
+              -X github.com/moodwave/moodwave/internal/config.BuildTime=${BUILD_TIME}" \
             -o "../dist/${BINARY_NAME}" \
             ./cmd/moodwave
+          echo "Built: ${BINARY_NAME}"
+
+      - name: Create checksum
+        working-directory: dist
+        run: |
+          sha256sum moodwave-${{ matrix.name }}${{ matrix.ext }} > moodwave-${{ matrix.name }}${{ matrix.ext }}.sha256
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: moodwave-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: moodwave-${{ matrix.name }}
           path: dist/
+          retention-days: 1
 
   release:
-    name: Create Release
+    name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist/
           merge-multiple: true
 
+      - name: List artifacts
+        run: ls -la dist/
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          ## Installation
+
+          ### macOS / Linux
+          ```bash
+          curl -fsSL https://raw.githubusercontent.com/Boredooms/Moodwave-CLI/main/cli/scripts/install.sh | bash
+          ```
+
+          ### Windows (PowerShell)
+          ```powershell
+          irm https://raw.githubusercontent.com/Boredooms/Moodwave-CLI/main/cli/scripts/install.ps1 | iex
+          ```
+
+          ### Manual download
+          Pick the binary for your platform from the assets below.
+
+          | Platform | File |
+          |----------|------|
+          | Windows x64 | `moodwave-windows-amd64.exe` |
+          | Windows ARM64 | `moodwave-windows-arm64.exe` |
+          | macOS Intel | `moodwave-darwin-amd64` |
+          | macOS Apple Silicon | `moodwave-darwin-arm64` |
+          | Linux x64 | `moodwave-linux-amd64` |
+          | Linux ARM64 | `moodwave-linux-arm64` |
+          | Linux ARMv7 | `moodwave-linux-armv7` |
+
+          ### After install
+          ```bash
+          moodwave doctor   # verify all dependencies
+          moodwave init     # set up config
+          moodwave          # launch and play
+          ```
+
+          ### Verify checksum
+          ```bash
+          sha256sum -c moodwave-<platform>.sha256
+          ```
+          EOF
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/**
+          files: |
+            dist/moodwave-*
+          body_path: release_notes.md
           generate_release_notes: true
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import SplitText from "./ui/SplitText";
+import FadeIn from "./ui/FadeIn";
 
 const faqs = [
   { q: "Is the CLI heavy? Will it slow down my machine?", a: "No. Moodwave is a single compiled Go binary of ~8 MB. It has zero background processes and only runs when you invoke it. It uses your system's native audio player (mpv, ffplay) and does not transcode or cache audio locally." },
@@ -16,13 +18,7 @@ function FAQItem({ q, a, index }: { q: string; a: string; index: number }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.45, delay: index * 0.06 }}
-      className="border-b border-white/[0.06] last:border-b-0"
-    >
+    <div className="border-b border-white/[0.06] last:border-b-0">
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-start justify-between gap-6 py-5 text-left group cursor-pointer"
@@ -36,20 +32,20 @@ function FAQItem({ q, a, index }: { q: string; a: string; index: number }) {
         </span>
       </button>
 
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {open && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             className="overflow-hidden"
           >
             <p className="pb-5 text-sm text-[#666] leading-relaxed max-w-2xl">{a}</p>
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }
 
@@ -58,21 +54,20 @@ export default function FAQ() {
     <section className="divider section-pad" id="faq">
       <div className="container-page">
         <div className="grid lg:grid-cols-[240px_1fr] gap-12 lg:gap-20">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.55 }}
-          >
-            <p className="font-mono text-xs text-[#444] uppercase tracking-[0.2em] mb-5">FAQ</p>
+          <div>
+            <p className="font-mono text-xs text-[#444] uppercase tracking-[0.2em] mb-5">
+              <SplitText text="FAQ" by="chars" delay={0.1} />
+            </p>
             <h2 className="font-mono font-semibold text-white" style={{ fontSize: "clamp(1.4rem, 2.5vw, 2rem)", letterSpacing: "-0.025em" }}>
-              Common questions.
+              <SplitText text="Common questions." by="words" delay={0.25} />
             </h2>
-          </motion.div>
+          </div>
 
           <div className="border border-white/[0.07] rounded-lg px-6 lg:px-8">
             {faqs.map((item, i) => (
-              <FAQItem key={item.q} q={item.q} a={item.a} index={i} />
+              <FadeIn key={item.q} delay={0.1 + i * 0.06} y={15} className="w-full">
+                <FAQItem q={item.q} a={item.a} index={i} />
+              </FadeIn>
             ))}
           </div>
         </div>

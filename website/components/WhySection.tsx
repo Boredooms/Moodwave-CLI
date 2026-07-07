@@ -1,6 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
+import FadeIn from "./ui/FadeIn";
+import SplitText from "./ui/SplitText";
 
 const statements = [
   "Most developers listen to music while coding. But the playlist never quite fits — too energetic for deep focus, too mellow when you're debugging a race condition at midnight.",
@@ -13,28 +14,22 @@ export default function WhySection() {
     <section className="divider section-pad" id="why">
       <div className="container-page">
         <div className="grid lg:grid-cols-[240px_1fr] gap-12 lg:gap-20">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.55 }}
-          >
-            <p className="font-mono text-xs text-[#444] uppercase tracking-[0.2em]">Why Moodwave</p>
-          </motion.div>
+          <div>
+            <p className="font-mono text-xs text-[#444] uppercase tracking-[0.2em]">
+              <SplitText text="Why Moodwave" by="chars" delay={0.1} stagger={0.04} />
+            </p>
+          </div>
 
           <div className="space-y-8 max-w-2xl">
             {statements.map((s, i) => (
-              <motion.p
-                key={i}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.6, delay: i * 0.12, ease: [0.22, 1, 0.36, 1] }}
-                className={`leading-relaxed ${i === 2 ? "font-mono text-sm text-[#888]" : "text-[#777]"}`}
-                style={{ fontSize: i === 2 ? undefined : "1.05rem" }}
-              >
-                {s}
-              </motion.p>
+              <FadeIn key={i} delay={0.15 + i * 0.1} y={20}>
+                <p
+                  className={`leading-relaxed ${i === 2 ? "font-mono text-sm text-[#888]" : "text-[#777]"}`}
+                  style={{ fontSize: i === 2 ? undefined : "1.05rem" }}
+                >
+                  {s}
+                </p>
+              </FadeIn>
             ))}
           </div>
         </div>
