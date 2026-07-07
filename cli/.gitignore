@@ -1,0 +1,46 @@
+# Binaries
+moodwave
+moodwave.exe
+dist/
+
+# Go
+*.test
+*.out
+vendor/
+
+# Build artifacts
+build/
+
+# Config (user-specific)
+.moodwave.toml
+
+# Cache
+.cache/
+*.cache
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node (for web/)
+web/node_modules/
+web/.next/
+web/.env.local
+web/out/
+
+# Env
+.env
+.env.*
+!.env.example

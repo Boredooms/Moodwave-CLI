@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moodwave — Terminal Mood Music Companion</title>
+    <meta name="description" content="An intelligent, developer-focused command-line music player. Scan your codebase, detect your mood, and stream matching music.">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <div class="container header-container">
+            <a href="#" class="logo">
+                <span class="logo-emoji">🌊</span> Moodwave
+            </a>
+            <nav class="nav">
+                <a href="#features" class="nav-link">Features</a>
+                <a href="#how-it-works" class="nav-link">How it Works</a>
+                <a href="#install" class="nav-link">Install</a>
+                <a href="https://github.com/Boredooms/Moodwave-CLI" class="nav-link github-btn" target="_blank">GitHub</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <!-- Hero Section -->
+        <section class="hero-section">
+            <div class="container hero-container">
+                <div class="hero-text">
+                    <div class="badge">v1.0.1 • Now Available</div>
+                    <h1 class="hero-title">Your Codebase Has a Rhythm.<br><span class="gradient-text">Listen to It.</span></h1>
+                    <p class="hero-subtitle">Moodwave scans your local repository, infers your working mood from code signals, and streams perfectly matched background music right in your terminal.</p>
+                    
+                    <!-- Interactive Terminal Install Box -->
+                    <div class="install-card">
+                        <div class="install-tabs">
+                            <button class="tab-btn active" onclick="switchTab('mac-linux')">macOS / Linux</button>
+                            <button class="tab-btn" onclick="switchTab('windows')">Windows</button>
+                        </div>
+                        <div class="install-body">
+                            <div id="mac-linux-cmd" class="cmd-content active">
+                                <span class="prompt">$</span> <span class="cmd-text" id="mac-text">curl -fsSL https://raw.githubusercontent.com/Boredooms/Moodwave-CLI/main/cli/scripts/install.sh | bash</span>
+                                <button class="copy-btn" onclick="copyCommand('mac-text')">Copy</button>
+                            </div>
+                            <div id="windows-cmd" class="cmd-content">
+                                <span class="prompt">PS></span> <span class="cmd-text" id="win-text">irm https://raw.githubusercontent.com/Boredooms/Moodwave-CLI/main/cli/scripts/install.ps1 | iex</span>
+                                <button class="copy-btn" onclick="copyCommand('win-text')">Copy</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TUI Terminal Mockup -->
+                <div class="hero-terminal">
+                    <div class="terminal-header">
+                        <div class="terminal-btn close"></div>
+                        <div class="terminal-btn minimize"></div>
+                        <div class="terminal-btn maximize"></div>
+                        <span class="terminal-title">moodwave --play</span>
+                    </div>
+                    <div class="terminal-body">
+                        <pre class="terminal-ascii-art">
+ █   █   ███    ███   ████   █   █   ███   █   █  █████
+ ██ ██  █   █  █   █  █   █  █   █  █   █  █   █  █
+ █ █ █  █   █  █   █  █   █  █ █ █  █████  █   █  ████
+ █   █  █   █  █   █  █   █  ██ ██  █   █   █ █   █   
+ █   █   ███    ███   ████   █   █  █   █    █    █████
+              terminal mood music companion
+                        </pre>
+                        <div class="terminal-divider"></div>
+                        <div class="terminal-mood">
+                            <span class="status-indicator icon-bug">🐛</span>
+                            <span class="mood-title">DEBUGGING</span>
+                            <span class="mood-confidence">(85% confidence)</span>
+                        </div>
+                        <div class="terminal-progress-bar">[██████████████████████████████████████████░░░░░░░░]</div>
+                        <div class="terminal-track-info">
+                            <div class="track-source">🎵 YouTube</div>
+                            <div class="track-name">FIFA and 3 more - Nora Fatehi, Vegedream, Sanjoy - Siir Siir</div>
+                            <div class="track-state">▶ PLAYING  🔄 LOOP: ONE</div>
+                        </div>
+                        <div class="terminal-waveform">
+ ▃▃▃▃▃▃▃▂▂                                         ▂▃▃▃▃▃▃▃▃▃▂▂
+ ████████████▇▆▅▄▃▂                      ▂▃▃▄▅▆▇█████████████████
+ █████████████████████▇▆▅▅▄▄▄▄▄▄▄▄▄▅▆▆▇██████████████████████████
+ ████████████████████████████████████████████████████████████████
+                        </div>
+                        <div class="terminal-divider"></div>
+                        <div class="terminal-footer">
+                            [Space] play/pause  [N] next  [L] loop  [S] scan  [V] visuals  [Q] quit  [Enter] command
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section id="features" class="features-section">
+            <div class="container">
+                <h2 class="section-title">Designed for Developers</h2>
+                <p class="section-subtitle">No heavy apps, no distractions. Just light-speed terminal audio.</p>
+                
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">🌊</div>
+                        <h3>Autonomous Play</h3>
+                        <p>Launch with a single word. Moodwave scans, recommends, and starts playing matching music instantly.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🐛</div>
+                        <h3>Codebase Mood Scan</h3>
+                        <p>Analyzes directory trees, languages, TODO comments, and git markers to calculate your cognitive load and mood.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h3>Zero Dependencies</h3>
+                        <p>Runs as a standalone binary. Leverages system audio pipelines (mpv/ffplay) to steam without installing Go.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🎨</div>
+                        <h3>Interactive Themes</h3>
+                        <p>Beautiful terminal visualizers featuring waveforms, spectrum analyzers, and 6 custom color schemes.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔄</div>
+                        <h3>Self-Updating</h3>
+                        <p>Checks for updates and updates the binary in-place, keeping you running the latest version automatically.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔍</div>
+                        <h3>Instant YouTube Search</h3>
+                        <p>Search and queue songs or live-streams on-the-fly directly inside the player console.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works Section -->
+        <section id="how-it-works" class="how-it-works-section">
+            <div class="container">
+                <h2 class="section-title">How Moodwave Analyzes Your Mood</h2>
+                <div class="how-grid">
+                    <div class="how-card">
+                        <div class="how-num">01</div>
+                        <h4>File & Language Scan</h4>
+                        <p>Scans files and directory depths. Highly structured repos indicate focused moods; rapid multi-language builds indicate sprint mode.</p>
+                    </div>
+                    <div class="how-card">
+                        <div class="how-num">02</div>
+                        <h4>Comment Semantic Extraction</h4>
+                        <p>Extracts expressions in comments. A high density of "TODO", "BUG", "FIXME", or "HACK" triggers a <em>Debugging</em> or <em>Intense</em> profile.</p>
+                    </div>
+                    <div class="how-card">
+                        <div class="how-num">03</div>
+                        <h4>Recommender Matching</h4>
+                        <p>Matches traits (BPM range, energy, mood tags) with streaming music. Boosts related artists and similar genres to maintain flow.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container footer-container">
+            <p>&copy; 2026 Moodwave. Built for hackers.</p>
+            <p>Made with 🌊 by Boredooms</p>
+        </div>
+    </footer>
+
+    <script>
+        function switchTab(platform) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.cmd-content').forEach(content => content.classList.remove('active'));
+            
+            if (platform === 'mac-linux') {
+                document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+                document.getElementById('mac-linux-cmd').classList.add('active');
+            } else {
+                document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+                document.getElementById('windows-cmd').classList.add('active');
+            }
+        }
+
+        function copyCommand(elementId) {
+            const copyText = document.getElementById(elementId).innerText;
+            navigator.clipboard.writeText(copyText).then(() => {
+                const btn = document.querySelector('.cmd-content.active .copy-btn');
+                const origText = btn.innerText;
+                btn.innerText = 'Copied!';
+                btn.style.backgroundColor = '#10b981';
+                setTimeout(() => {
+                    btn.innerText = origText;
+                    btn.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
