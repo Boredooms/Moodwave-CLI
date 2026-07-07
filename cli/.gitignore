@@ -1,7 +1,7 @@
 # Binaries
-moodwave
-moodwave.exe
-dist/
+/moodwave
+/moodwave.exe
+/dist/
 
 # Go
 *.test
