@@ -15,7 +15,11 @@ export default function Nav({ version = "v1.0.1" }: { version?: string }) {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/[0.05]" style={{ background: "rgba(8,8,8,0.85)", backdropFilter: "blur(12px)" }}>
       <div className="container-page flex items-center justify-between" style={{ height: "56px" }}>
-        <a href="#" className="flex items-center gap-2 group">
+        <a href="#" className="flex items-center gap-2.5 group">
+          <svg className="w-5 h-5 text-white transition-transform group-hover:rotate-12 duration-300" viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="14" fill="#080808" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M9 16h1.5M13 11v10M17 7v18M21 13v6M25 16h-1.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
           <span className="font-mono text-sm font-semibold text-white">moodwave</span>
           <span className="font-mono text-xs text-[#444] group-hover:text-[#666] transition-colors">{version}</span>
         </a>
