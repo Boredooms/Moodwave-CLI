@@ -29,8 +29,8 @@ export default function CommandBlock({ command, label, prompt = "$" }: CommandBl
           className="flex items-center gap-3 min-w-0 flex-1 overflow-x-auto pr-3 scrollbar-none"
           style={{ scrollbarWidth: "none" }} // Firefox
         >
-          <span className="text-[#555] font-mono text-sm flex-shrink-0 select-none">{prompt}</span>
-          <code className="text-[#c9c9c9] font-mono text-sm whitespace-nowrap">{command}</code>
+          <span className="text-[#555] font-mono text-xs flex-shrink-0 select-none">{prompt}</span>
+          <code className="text-[#c9c9c9] font-mono text-xs whitespace-nowrap tracking-tight">{command}</code>
         </div>
         
         {/* Copy button - stays pinned to the right */}

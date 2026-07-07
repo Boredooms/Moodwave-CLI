@@ -76,7 +76,7 @@ export default function Installation() {
             </FadeIn>
           </div>
 
-          <div>
+          <div className="w-full max-w-2xl min-w-0">
             {/* Tabs */}
             <FadeIn delay={0.25} y={15}>
               <div className="flex gap-0 border border-white/[0.07] rounded-lg overflow-hidden mb-6 w-fit">
