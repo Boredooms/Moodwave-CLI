@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export default function Nav() {
+export default function Nav({ version = "v1.0.1" }: { version?: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const links = [
@@ -17,7 +17,7 @@ export default function Nav() {
       <div className="container-page flex items-center justify-between" style={{ height: "56px" }}>
         <a href="#" className="flex items-center gap-2 group">
           <span className="font-mono text-sm font-semibold text-white">moodwave</span>
-          <span className="font-mono text-xs text-[#444] group-hover:text-[#666] transition-colors">cli</span>
+          <span className="font-mono text-xs text-[#444] group-hover:text-[#666] transition-colors">{version}</span>
         </a>
 
         {/* Desktop */}

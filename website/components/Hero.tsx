@@ -5,7 +5,7 @@ import CommandBlock from "./ui/CommandBlock";
 import SplitText from "./ui/SplitText";
 import FadeIn from "./ui/FadeIn";
 
-export default function Hero() {
+export default function Hero({ version = "v1.0.1" }: { version?: string }) {
   return (
     <section className="relative min-h-screen flex items-center pt-14 overflow-hidden">
       {/* Subtle grid */}
@@ -34,7 +34,7 @@ export default function Hero() {
               <div className="inline-flex items-center gap-2 mb-8">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#444]" />
                 <span className="font-mono text-xs text-[#555] tracking-widest uppercase">
-                  v1.0.1 — open source
+                  {version} — open source
                 </span>
               </div>
             </FadeIn>

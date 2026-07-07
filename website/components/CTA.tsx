@@ -4,7 +4,7 @@ import CommandBlock from "./ui/CommandBlock";
 import SplitText from "./ui/SplitText";
 import FadeIn from "./ui/FadeIn";
 
-export default function CTA() {
+export default function CTA({ version = "v1.0.1" }: { version?: string }) {
   return (
     <>
       <section className="divider section-pad" id="cta">
@@ -63,7 +63,7 @@ export default function CTA() {
         <div className="container-page py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <span className="font-mono text-sm text-white">moodwave</span>
-            <span className="font-mono text-xs text-[#333]">v1.0.1</span>
+            <span className="font-mono text-xs text-[#333]">{version}</span>
           </div>
           <div className="flex items-center gap-6">
             {[

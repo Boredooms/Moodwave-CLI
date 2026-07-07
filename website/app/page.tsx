@@ -9,11 +9,31 @@ import Installation from "../components/Installation";
 import FAQ from "../components/FAQ";
 import CTA from "../components/CTA";
 
-export default function Home() {
+async function getLatestVersion() {
+  try {
+    // Fetch latest release tag name dynamically from GitHub API at build/render time
+    // Next.js cache keeps this optimized for 1 hour to prevent hitting API rate limits
+    const res = await fetch("https://api.github.com/repos/Boredooms/Moodwave-CLI/releases/latest", {
+      next: { revalidate: 3600 },
+      headers: {
+        "User-Agent": "Moodwave-Website-Builder"
+      }
+    });
+    if (!res.ok) return "v1.0.1";
+    const data = await res.json();
+    return data.tag_name || "v1.0.1";
+  } catch (e) {
+    return "v1.0.1";
+  }
+}
+
+export default async function Home() {
+  const version = await getLatestVersion();
+
   return (
     <main style={{ background: "#080808", minHeight: "100vh", overflowX: "hidden" }}>
-      <Nav />
-      <Hero />
+      <Nav version={version} />
+      <Hero version={version} />
       <WhySection />
       <HowItWorks />
       <TerminalShowcase />
@@ -21,7 +41,7 @@ export default function Home() {
       <Architecture />
       <Installation />
       <FAQ />
-      <CTA />
+      <CTA version={version} />
     </main>
   );
 }
