@@ -19,21 +19,21 @@ Moodwave scans your codebase, infers the current coding mood, and plays matching
 ### macOS / Linux
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/moodwave/moodwave/main/scripts/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/Boredooms/Moodwave-CLI/main/cli/scripts/install.sh | sh
 ```
 
 ### Windows (PowerShell)
 
 ```powershell
-irm https://raw.githubusercontent.com/moodwave/moodwave/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/Boredooms/Moodwave-CLI/main/cli/scripts/install.ps1 | iex
 ```
 
 ### Build from source
 
 ```sh
-git clone https://github.com/moodwave/moodwave
-cd moodwave
-make install
+git clone https://github.com/Boredooms/Moodwave-CLI.git
+cd Moodwave-CLI/cli
+go install ./cmd/moodwave
 ```
 
 ---
@@ -77,29 +77,30 @@ moodwave --help
 | `moodwave visual`  | Switch visual mode                          |
 | `moodwave source`  | View or switch music source                 |
 | `moodwave doctor`  | Run diagnostics on all subsystems           |
+| `moodwave update`  | Update the CLI binary in-place to latest    |
 
 ---
 
 ## Architecture
 
 ```
-moodwave/
-├─ cmd/moodwave/        CLI entry point and command dispatcher
-├─ internal/
-│  ├─ config/           Configuration loading and management
-│  ├─ platform/         OS and terminal capability detection
-│  ├─ scanner/          Repository analysis and signal extraction
-│  ├─ mood/             Heuristic mood inference engine
-│  ├─ recommender/      Mood-to-track matching and ranking
-│  ├─ sources/          Music API adapters (MusicBrainz, Radio Browser, etc.)
-│  ├─ playback/         Audio playback controller
-│  ├─ visuals/          Terminal UI renderer and animation engine
-│  └─ cache/            LRU metadata cache
-├─ docs/                Project documentation
-├─ scripts/             Install and build scripts
-├─ assets/              Design tokens and static assets
-├─ tests/               Integration and end-to-end tests
-└─ web/                 Promotional website (Phase 3)
+Moodwave-CLI/
+├─ cli/                 Core Go implementation
+│  ├─ cmd/moodwave/     CLI entry point and dispatcher
+│  ├─ internal/         Subsystem layers
+│  │  ├─ config/        Config priority chain loader
+│  │  ├─ platform/      Terminal capabilities detection
+│  │  ├─ scanner/       Language & git signal extraction
+│  │  ├─ mood/          Heuristic mood inference
+│  │  ├─ recommender/   Mood-to-track matching & ranking
+│  │  ├─ sources/       YouTube/Jamendo/Radio Browser adapters
+│  │  ├─ playback/      Audio controllers (mpv/ffplay)
+│  │  └─ visuals/       ANSI escape TUI & equalizer
+│  ├─ scripts/          Deployment/install script files
+│  └─ tests/            Integration and tests
+├─ website/             Promotional website (Next.js)
+├─ docs/                Project design documents
+└─ .github/workflows/   GitHub CI and release workflows
 ```
 
 ---

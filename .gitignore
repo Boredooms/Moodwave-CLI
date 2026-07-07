@@ -1,0 +1,24 @@
+# IDE & System Files
+.kilocode/
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
+
+# CLI Build Artifacts
+cli/dist/
+cli/moodwave
+cli/moodwave.exe
+
+# Website Build Artifacts
+website/node_modules/
+website/.next/
+website/out/
+website/.env.local
+website/.env.development.local
+website/.env.test.local
+website/.env.production.local
+website/npm-debug.log*
+website/yarn-debug.log*
+website/yarn-error.log*
