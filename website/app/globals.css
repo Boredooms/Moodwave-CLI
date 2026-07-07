@@ -35,7 +35,7 @@
   }
 
   html {
-    scroll-behavior: auto;
+    scroll-behavior: smooth;
     background-color: #080808;
     color: #ffffff;
     -webkit-font-smoothing: antialiased;
