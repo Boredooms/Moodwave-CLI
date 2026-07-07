@@ -36,7 +36,7 @@ jobs:
             goarch: arm
             goarm: "7"
             ext: ""
-            name: linux-armv7
+            name: linux-arm
           - goos: darwin
             goarch: amd64
             ext: ""
@@ -132,7 +132,7 @@ jobs:
           | macOS Apple Silicon | `moodwave-darwin-arm64` |
           | Linux x64 | `moodwave-linux-amd64` |
           | Linux ARM64 | `moodwave-linux-arm64` |
-          | Linux ARMv7 | `moodwave-linux-armv7` |
+          | Linux ARM | `moodwave-linux-arm` |
 
           ### After install
           ```bash
