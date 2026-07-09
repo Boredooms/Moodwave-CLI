@@ -218,6 +218,16 @@ func (r *Renderer) Start() {
 
 // Stop halts the animation loop and restores the cursor.
 func (r *Renderer) Stop() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Check if already closed/stopped to prevent panic
+	select {
+	case <-r.stop:
+		return
+	default:
+	}
+
 	if r.ticker != nil {
 		r.ticker.Stop()
 	}
@@ -533,7 +543,7 @@ func (r *Renderer) renderWave(out *strings.Builder, width int, energy float64, f
 
 	colorCode := ""
 	if r.state.Mood != nil {
-		colorCode = r.getMoodColor(r.state.Mood.Label)
+		colorCode = r.getWaveColor(r.state.Mood.Label)
 	}
 
 	for row := height - 1; row >= 0; row-- {
@@ -598,7 +608,7 @@ func (r *Renderer) renderSpectrum(out *strings.Builder, width int, energy float6
 
 	colorCode := ""
 	if r.state.Mood != nil {
-		colorCode = r.getMoodColor(r.state.Mood.Label)
+		colorCode = r.getWaveColor(r.state.Mood.Label)
 	}
 
 	// Render row by row from top to bottom.
@@ -675,7 +685,7 @@ func (r *Renderer) renderPulse(out *strings.Builder, width int, energy float64, 
 
 	colorCode := ""
 	if r.state.Mood != nil {
-		colorCode = r.getMoodColor(r.state.Mood.Label)
+		colorCode = r.getWaveColor(r.state.Mood.Label)
 	}
 
 	pulseStr := fmt.Sprintf("%s  ◆  %s", leftRing, rightRing)
@@ -722,6 +732,95 @@ func (r *Renderer) getMoodColor(moodLabel mood.Label) string {
 	default:
 		return "\033[1;32m" // Bright Green
 	}
+}
+
+// ThemeColors represents terminal colors for visual theme rendering.
+type ThemeColors struct {
+	Primary   string
+	Secondary string
+	Text      string
+	Selected  string
+}
+
+// getThemeColors returns the active theme color escape sequences.
+func (r *Renderer) getThemeColors() ThemeColors {
+	if r.cfg.NoColor {
+		return ThemeColors{}
+	}
+
+	theme := r.cfg.Theme
+	switch theme {
+	case "ocean":
+		return ThemeColors{
+			Primary:   "\033[1;36m", // Cyan
+			Secondary: "\033[1;34m", // Blue
+			Text:      "\033[37m",   // White
+			Selected:  "\033[1;36m", // Cyan
+		}
+	case "neon":
+		return ThemeColors{
+			Primary:   "\033[1;35m", // Magenta/Purple
+			Secondary: "\033[1;36m", // Cyan
+			Text:      "\033[37m",   // White
+			Selected:  "\033[1;35m", // Magenta
+		}
+	case "sunset":
+		return ThemeColors{
+			Primary:   "\033[1;31m", // Red
+			Secondary: "\033[1;33m", // Yellow/Orange
+			Text:      "\033[37m",   // White
+			Selected:  "\033[1;31m", // Red
+		}
+	case "matrix":
+		return ThemeColors{
+			Primary:   "\033[1;32m", // Green
+			Secondary: "\033[32m",   // Dim Green
+			Text:      "\033[37m",   // White
+			Selected:  "\033[1;32m", // Green
+		}
+	case "lavender":
+		return ThemeColors{
+			Primary:   "\033[38;5;141m", // Lavender
+			Secondary: "\033[1;35m",     // Purple
+			Text:      "\033[37m",       // White
+			Selected:  "\033[38;5;141m",
+		}
+	case "dark", "ash":
+		return ThemeColors{
+			Primary:   "\033[38;5;252m", // Bright ash
+			Secondary: "\033[38;5;240m", // Slate gray
+			Text:      "\033[38;5;248m", // Medium ash
+			Selected:  "\033[1;37m",     // Bold white
+		}
+	case "ghost":
+		return ThemeColors{
+			Primary:   "\033[38;5;244m", // Dim gray
+			Secondary: "\033[38;5;236m", // Very dark gray
+			Text:      "\033[38;5;240m", // Muted gray
+			Selected:  "\033[1;30m",     // Bold dark gray
+		}
+	case "monochrome":
+		fallthrough
+	default:
+		return ThemeColors{
+			Primary:   "\033[1;37m", // Bold White
+			Secondary: "\033[1;30m", // Dark Gray
+			Text:      "\033[37m",   // White
+			Selected:  "\033[1;37m", // Bold White
+		}
+	}
+}
+
+// getWaveColor returns wave colors influenced by active theme settings.
+func (r *Renderer) getWaveColor(moodLabel mood.Label) string {
+	if r.cfg.NoColor {
+		return ""
+	}
+	// Fall back to mood-based colors for monochrome themes, otherwise use theme primary
+	if r.cfg.Theme == config.ThemeMonochrome || r.cfg.Theme == "" {
+		return r.getMoodColor(moodLabel)
+	}
+	return r.getThemeColors().Primary
 }
 
 func (r *Renderer) writeLine(out *strings.Builder, s string) {
@@ -850,9 +949,10 @@ func (r *Renderer) renderWelcome(out *strings.Builder, width int, state RenderSt
 		out.WriteString("\n")
 	}
 
+	colors := r.getThemeColors()
 	colorCode := ""
 	if !r.cfg.NoColor {
-		colorCode = r.getMoodColor(mood.MoodCalm)
+		colorCode = colors.Primary
 	}
 
 	if r.cfg.Caps.SafeWidth() >= 60 {
@@ -872,7 +972,13 @@ func (r *Renderer) renderWelcome(out *strings.Builder, width int, state RenderSt
 		out.WriteString(centered + "\n")
 	}
 
-	out.WriteString(centerPad("\033[1;30mterminal mood music companion\033[0m", width) + "\n\n")
+	// Dynamic subtitle coloring
+	subtitleText := "terminal mood music companion"
+	if !r.cfg.NoColor {
+		out.WriteString(centerPad(colors.Secondary+subtitleText+ansiReset, width) + "\n\n")
+	} else {
+		out.WriteString(centerPad(subtitleText, width) + "\n\n")
+	}
 
 	boxWidth := 36
 	for _, item := range items {
@@ -889,7 +995,17 @@ func (r *Renderer) renderWelcome(out *strings.Builder, width int, state RenderSt
 	if len(headerLine) > boxWidth+2 {
 		headerLine = headerLine[:boxWidth+2]
 	}
-	out.WriteString(centerPad("\033[1;30m"+headerLine+"\033[0m", width) + "\n")
+	
+	// Dynamic header box border and title coloring
+	if !r.cfg.NoColor {
+		// Color the title of the box in primary, and borders in secondary
+		lhs := "┌" + strings.Repeat("─", (boxWidth-len(boxTitle))/2)
+		rhs := strings.Repeat("─", (boxWidth-len(boxTitle))/2) + "┐"
+		coloredHeader := colors.Secondary + lhs + ansiReset + colors.Primary + ansiBold + boxTitle + ansiReset + colors.Secondary + rhs + ansiReset
+		out.WriteString(centerPad(coloredHeader, width) + "\n")
+	} else {
+		out.WriteString(centerPad(headerLine, width) + "\n")
+	}
 
 	for idx, item := range items {
 		content := item
@@ -910,14 +1026,16 @@ func (r *Renderer) renderWelcome(out *strings.Builder, width int, state RenderSt
 			}
 			rawLine := fmt.Sprintf("│  %s%s%s  │", pointer, content, leftSpace+rightSpace)
 			if !r.cfg.NoColor {
-				line = centerPad("\033[1;32m│  "+pointer+content+leftSpace+rightSpace+"  │\033[0m", width)
+				// Borders in secondary, pointer and selection in active selected theme color
+				line = centerPad(colors.Secondary+"│  "+ansiReset+colors.Selected+ansiBold+pointer+content+leftSpace+rightSpace+ansiReset+colors.Secondary+"  │"+ansiReset, width)
 			} else {
 				line = centerPad(rawLine, width)
 			}
 		} else {
 			rawLine := fmt.Sprintf("│     %s%s  │", content, leftSpace+rightSpace)
 			if !r.cfg.NoColor {
-				line = centerPad("\033[1;30m│     \033[0m\033[1;37m"+content+"\033[0m\033[1;30m"+leftSpace+rightSpace+"  │\033[0m", width)
+				// Borders in secondary, standard items in theme text color
+				line = centerPad(colors.Secondary+"│     "+ansiReset+colors.Text+content+ansiReset+colors.Secondary+leftSpace+rightSpace+"  │"+ansiReset, width)
 			} else {
 				line = centerPad(rawLine, width)
 			}
@@ -926,13 +1044,21 @@ func (r *Renderer) renderWelcome(out *strings.Builder, width int, state RenderSt
 	}
 
 	bottomLine := "└" + strings.Repeat("─", boxWidth) + "┘"
-	out.WriteString(centerPad("\033[1;30m"+bottomLine+"\033[0m", width) + "\n\n")
+	if !r.cfg.NoColor {
+		out.WriteString(centerPad(colors.Secondary+bottomLine+ansiReset, width) + "\n\n")
+	} else {
+		out.WriteString(centerPad(bottomLine, width) + "\n\n")
+	}
 
 	helper := "[W/S / Arrow Keys] Navigate  •  [Enter/Space] Select  •  [Q/Esc] Back/Exit"
 	if r.cfg.NoUnicode {
 		helper = "[W/S] Navigate  *  [Enter] Select  *  [Q] Exit"
 	}
-	out.WriteString(centerPad("\033[1;30m"+helper+"\033[0m", width) + "\n")
+	if !r.cfg.NoColor {
+		out.WriteString(centerPad(colors.Secondary+helper+ansiReset, width) + "\n")
+	} else {
+		out.WriteString(centerPad(helper, width) + "\n")
+	}
 
 	remainingRows := height - (topPadding + contentHeight)
 	for i := 0; i < remainingRows-1; i++ {
@@ -950,5 +1076,9 @@ func (r *Renderer) renderWelcome(out *strings.Builder, width int, state RenderSt
 		metaWidth = 2
 	}
 	metaLine := metaLeft + strings.Repeat(" ", metaWidth) + metaRight
-	out.WriteString("\033[1;30m" + metaLine + "\033[0m")
+	if !r.cfg.NoColor {
+		out.WriteString(colors.Secondary + metaLine + ansiReset)
+	} else {
+		out.WriteString(metaLine)
+	}
 }

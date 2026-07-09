@@ -42,6 +42,11 @@ const (
 	ThemeDark       ThemeID = "dark"
 	ThemeAsh        ThemeID = "ash"
 	ThemeGhost      ThemeID = "ghost"
+	ThemeOcean      ThemeID = "ocean"
+	ThemeNeon       ThemeID = "neon"
+	ThemeSunset     ThemeID = "sunset"
+	ThemeMatrix     ThemeID = "matrix"
+	ThemeLavender   ThemeID = "lavender"
 )
 
 // Config is the fully resolved configuration for a Moodwave session.

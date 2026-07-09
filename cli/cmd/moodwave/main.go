@@ -61,6 +61,17 @@ DOCS
 `
 
 func main() {
+	// Graceful panic recovery to prevent raw stack trace outputs to the user
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "\n\033[1;31mError: An unexpected internal error occurred: %v\033[0m\n", r)
+			fmt.Fprintf(os.Stderr, "Please report this issue at https://github.com/Boredooms/Moodwave-CLI/issues\n")
+			// Restore cursor and screen just in case
+			fmt.Print("\033[?25h")
+			os.Exit(1)
+		}
+	}()
+
 	// Dispatch subcommand.
 	subcommand := "auto"
 	var remainingArgs []string

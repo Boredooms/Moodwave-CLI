@@ -1498,13 +1498,29 @@ func (a *App) cmdWelcome() error {
 		state, err := term.MakeRaw(int(os.Stdin.Fd()))
 		if err == nil {
 			oldState = state
-			defer term.Restore(int(os.Stdin.Fd()), oldState)
 		}
 	}
 
 	keyChan := make(chan rune, 100)
 	keyDone := make(chan struct{})
-	defer close(keyDone)
+	
+	closeKeyDone := func() {
+		select {
+		case <-keyDone:
+			// already closed
+		default:
+			close(keyDone)
+		}
+	}
+	defer closeKeyDone()
+
+	restoreTTY := func() {
+		if oldState != nil {
+			term.Restore(int(os.Stdin.Fd()), oldState)
+			oldState = nil
+		}
+	}
+	defer restoreTTY()
 
 	if a.caps.IsTTY {
 		go func() {
@@ -1553,10 +1569,13 @@ func (a *App) cmdWelcome() error {
 
 	inThemeMenu := false
 	themeItems := []string{
+		"monochrome",
+		"dark",
+		"ash",
+		"ghost",
 		"ocean",
 		"neon",
 		"sunset",
-		"monochrome",
 		"matrix",
 		"lavender",
 		"⬅ Back to Main Menu",
@@ -1649,9 +1668,8 @@ func (a *App) cmdWelcome() error {
 					switch chosen {
 					case "🌊 Autonomous Play":
 						renderer.Stop()
-						if oldState != nil {
-							term.Restore(int(os.Stdin.Fd()), oldState)
-						}
+						closeKeyDone()
+						restoreTTY()
 						fmt.Println("\n🌊 Codebase analysis in progress...")
 						if err := a.cmdScan(nil); err != nil {
 							return err
@@ -1659,9 +1677,8 @@ func (a *App) cmdWelcome() error {
 						return a.cmdPlay(nil)
 					case "🔍 YouTube Search":
 						renderer.Stop()
-						if oldState != nil {
-							term.Restore(int(os.Stdin.Fd()), oldState)
-						}
+						closeKeyDone()
+						restoreTTY()
 						fmt.Print("\nEnter YouTube search query: ")
 						reader := bufio.NewReader(os.Stdin)
 						line, _ := reader.ReadString('\n')
@@ -1676,11 +1693,13 @@ func (a *App) cmdWelcome() error {
 						updateWelcomeState()
 					case "🔄 Check for Updates":
 						renderer.Stop()
-						if oldState != nil {
-							term.Restore(int(os.Stdin.Fd()), oldState)
-						}
+						closeKeyDone()
+						restoreTTY()
 						return a.cmdSelfUpdate()
 					case "🚪 Exit":
+						renderer.Stop()
+						closeKeyDone()
+						restoreTTY()
 						return nil
 					}
 				}
