@@ -115,12 +115,105 @@ const staticReleases: ReleaseItem[] = [
 ];
 
 export default function Changelog() {
+  const [releases, setReleases] = useState<ReleaseItem[]>(staticReleases);
   const [activeMetricTab, setActiveMetricTab] = useState<"size" | "speed" | "themes">("speed");
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
     "v1.0.4": true,
     "v1.0.2": true,
     "v1.0.0": false,
   });
+
+  useEffect(() => {
+    async function fetchReleases() {
+      try {
+        const res = await fetch("https://api.github.com/repos/Boredooms/Moodwave-CLI/releases", {
+          headers: {
+            "User-Agent": "Moodwave-Website-Builder"
+          }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          // Merge API releases with static template metadata
+          const merged: ReleaseItem[] = data.map((gitRelease: any) => {
+            const version = gitRelease.tag_name;
+            const staticMatch = staticReleases.find(r => r.version === version);
+            
+            const dateObj = new Date(gitRelease.published_at);
+            const formattedDate = dateObj.toLocaleDateString("en-US", {
+              month: "long",
+              day: "2-digit",
+              year: "numeric"
+            });
+
+            if (staticMatch) {
+              return {
+                ...staticMatch,
+                date: formattedDate,
+                githubUrl: gitRelease.html_url
+              };
+            }
+
+            // Parse markdown release descriptions into categories
+            const bodyLines = gitRelease.body ? gitRelease.body.split("\n") : [];
+            const features: string[] = [];
+            const fixes: string[] = [];
+            const performance: string[] = [];
+            
+            let currentCat = features;
+            for (let line of bodyLines) {
+              line = line.trim();
+              if (line.toLowerCase().includes("fix") || line.toLowerCase().includes("bug")) {
+                currentCat = fixes;
+              } else if (line.toLowerCase().includes("perf") || line.toLowerCase().includes("speed")) {
+                currentCat = performance;
+              } else if (line.toLowerCase().includes("feat") || line.toLowerCase().includes("add")) {
+                currentCat = features;
+              }
+              
+              if (line.startsWith("-") || line.startsWith("*")) {
+                const bullet = line.slice(1).trim();
+                if (bullet) currentCat.push(bullet);
+              } else if (line.match(/^\d+\./)) {
+                const bullet = line.replace(/^\d+\./, "").trim();
+                if (bullet) currentCat.push(bullet);
+              }
+            }
+
+            if (features.length === 0 && fixes.length === 0 && performance.length === 0 && gitRelease.body) {
+              features.push(gitRelease.body.slice(0, 300) + (gitRelease.body.length > 300 ? "..." : ""));
+            }
+
+            return {
+              version,
+              date: formattedDate,
+              title: gitRelease.name || `Release ${version}`,
+              summary: gitRelease.body ? gitRelease.body.split("\n")[0].slice(0, 150) + "..." : "Updates and improvements.",
+              githubUrl: gitRelease.html_url,
+              features: features.length > 0 ? features : ["Refer to GitHub release details."],
+              fixes,
+              performance,
+              metrics: {
+                binarySize: "8.0 MB",
+                scanLatency: "0.3 ms",
+                themes: 9,
+                visualizers: 6
+              }
+            };
+          });
+
+          // Sort releases to keep newest on top
+          merged.sort((a, b) => {
+            return b.version.localeCompare(a.version, undefined, { numeric: true, sensitivity: 'base' });
+          });
+          setReleases(merged);
+        }
+      } catch (e) {
+        console.error("Failed to fetch live GitHub releases:", e);
+      }
+    }
+    fetchReleases();
+  }, []);
 
   const toggleExpand = (ver: string) => {
     setExpandedCards(prev => ({ ...prev, [ver]: !prev[ver] }));
@@ -313,7 +406,7 @@ export default function Changelog() {
         <div className="container-page max-w-4xl">
           <div className="relative border-l border-white/[0.08] ml-4 md:ml-8 pl-8 md:pl-12 space-y-16">
             
-            {staticReleases.map((release, index) => {
+            {releases.map((release, index) => {
               const isOpen = expandedCards[release.version];
 
               return (
