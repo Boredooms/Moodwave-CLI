@@ -219,9 +219,11 @@ export default function Changelog() {
     setExpandedCards(prev => ({ ...prev, [ver]: !prev[ver] }));
   };
 
+  const latestVersion = releases[0]?.version || "v1.0.5";
+
   return (
     <div style={{ background: "#080808", minHeight: "100vh", color: "#ffffff", paddingBottom: "100px" }}>
-      <Nav version="v1.0.4" />
+      <Nav version={latestVersion} />
 
       {/* Hero Header */}
       <section className="relative pt-32 pb-16 overflow-hidden border-b border-white/[0.05]">
