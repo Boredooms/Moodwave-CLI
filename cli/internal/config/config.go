@@ -32,6 +32,7 @@ const (
 	VisualPulse    VisualMode = "pulse"
 	VisualMinimal  VisualMode = "minimal"
 	VisualQuiet    VisualMode = "quiet"
+	VisualFire     VisualMode = "fireplace"
 )
 
 // ThemeID identifies a visual color theme.

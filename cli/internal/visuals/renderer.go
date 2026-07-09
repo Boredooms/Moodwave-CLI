@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand"
 	"os"
 	"strings"
 	"sync"
@@ -122,13 +123,14 @@ type RenderState struct {
 
 // Renderer is the main terminal rendering engine.
 type Renderer struct {
-	mu     sync.Mutex
-	cfg    RendererConfig
-	state  RenderState
-	frame  int
-	ticker *time.Ticker
-	stop   chan struct{}
-	out    io.Writer
+	mu       sync.Mutex
+	cfg      RendererConfig
+	state    RenderState
+	frame    int
+	ticker   *time.Ticker
+	stop     chan struct{}
+	out      io.Writer
+	fireGrid [][]int // persistent fire state matrix
 }
 
 // New creates a Renderer.
@@ -492,8 +494,113 @@ func (r *Renderer) renderVisualPanel(out *strings.Builder, width int, state Rend
 		r.renderSpectrum(out, width, energy, frame)
 	case config.VisualPulse:
 		r.renderPulse(out, width, energy, frame)
+	case config.VisualFire:
+		r.renderFireplace(out, width, energy, frame)
 	case config.VisualMinimal:
 		r.renderMinimalVisual(out, width, state)
+	}
+}
+
+// renderFireplace renders a cozy cellular-automaton fireplace.
+func (r *Renderer) renderFireplace(out *strings.Builder, width int, energy float64, frame int) {
+	fireRows := 10
+	fireCols := width
+	if fireCols < 1 {
+		fireCols = 1
+	}
+
+	// Initialize or resize the fire grid if needed
+	if r.fireGrid == nil || len(r.fireGrid) != fireRows || len(r.fireGrid[0]) != fireCols {
+		r.fireGrid = make([][]int, fireRows)
+		for i := range r.fireGrid {
+			r.fireGrid[i] = make([]int, fireCols)
+		}
+	}
+
+	// Define characters and colors for the fireplace flames.
+	// Index 0 represents empty/cool. Highest index represents hottest flame.
+	var firePalette = []struct {
+		char  string
+		color string
+	}{
+		{" ", ""},
+		{".", "\033[38;5;236m"}, // very dim gray
+		{",", "\033[38;5;52m"},  // dark red
+		{"*", "\033[38;5;88m"},  // red-brown
+		{"x", "\033[38;5;124m"}, // medium red
+		{"s", "\033[38;5;160m"}, // red
+		{"o", "\033[38;5;196m"}, // bright red
+		{"d", "\033[38;5;202m"}, // orange-red
+		{"m", "\033[38;5;208m"}, // orange
+		{"0", "\033[38;5;214m"}, // yellow-orange
+		{"H", "\033[38;5;220m"}, // yellow
+		{"M", "\033[38;5;226m"}, // bright yellow
+		{"W", "\033[38;5;230m"}, // warm white
+		{"█", "\033[97m"},        // bright white
+	}
+
+	// Fallback palette for monochrome/NoUnicode
+	if r.cfg.NoUnicode {
+		firePalette[len(firePalette)-1].char = "W"
+	}
+
+	maxHeat := len(firePalette) - 1
+
+	// Seed the bottom row (heat source)
+	for col := 0; col < fireCols; col++ {
+		if rand.Intn(100) < 85 {
+			r.fireGrid[0][col] = maxHeat
+		} else {
+			r.fireGrid[0][col] = maxHeat - 2
+		}
+	}
+
+	// Propagate the flame upwards (cellular automaton style)
+	for y := 1; y < fireRows; y++ {
+		for x := 0; x < fireCols; x++ {
+			// Pick a source cell from the row below with a random horizontal shift/wind
+			wind := rand.Intn(3) - 1 // -1, 0, or 1
+			srcX := (x + wind + fireCols) % fireCols
+
+			// Apply decay based on the average energy of the song.
+			// Higher energy means lower decay (flames rise taller).
+			decayProb := 38
+			if energy > 0.6 {
+				decayProb = 24
+			} else if energy < 0.35 {
+				decayProb = 55
+			}
+
+			decay := rand.Intn(2) // 0 or 1
+			if rand.Intn(100) < decayProb {
+				decay++
+			}
+
+			val := r.fireGrid[y-1][srcX] - decay
+			if val < 0 {
+				val = 0
+			}
+			r.fireGrid[y][x] = val
+		}
+	}
+
+	// Render the fire grid (top to bottom)
+	for y := fireRows - 1; y >= 0; y-- {
+		var sb strings.Builder
+		for x := 0; x < fireCols; x++ {
+			heat := r.fireGrid[y][x]
+			cell := firePalette[heat]
+			if r.cfg.NoColor {
+				sb.WriteString(cell.char)
+			} else {
+				if cell.color != "" {
+					sb.WriteString(cell.color + cell.char + ansiReset)
+				} else {
+					sb.WriteString(cell.char)
+				}
+			}
+		}
+		out.WriteString(sb.String() + "\n")
 	}
 }
 
@@ -502,9 +609,9 @@ func (r *Renderer) renderFooter(out *strings.Builder, width int, state RenderSta
 	r.renderSeparator(out, width)
 
 	if state.InputMode {
-		helper := "  Commands: play <song> | playnext <song> | add <song> | visuals [wave|spectrum|pulse] | pause | resume"
+		helper := "  Commands: play <song> | playnext <song> | add <song> | visuals [wave|spectrum|pulse|fireplace] | pause | resume"
 		if !r.cfg.NoColor {
-			helper = "  \033[1;30mCommands: \033[1;32mplay <song>\033[1;30m | \033[1;32mplaynext <song>\033[1;30m | \033[1;32madd <song>\033[1;30m | \033[1;32mvisuals [wave|spectrum|pulse]\033[0m"
+			helper = "  \033[1;30mCommands: \033[1;32mplay <song>\033[1;30m | \033[1;32mplaynext <song>\033[1;30m | \033[1;32madd <song>\033[1;30m | \033[1;32mvisuals [wave|spectrum|pulse|fireplace]\033[0m"
 		}
 		out.WriteString(helper + "\n")
 

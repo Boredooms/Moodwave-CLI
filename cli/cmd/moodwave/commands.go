@@ -773,6 +773,8 @@ func (a *App) startPlaybackRenderer(ctrl *playback.Controller, session *Session,
 								nextMode = config.VisualSpectrum
 							case "pulse":
 								nextMode = config.VisualPulse
+							case "fireplace", "fire":
+								nextMode = config.VisualFire
 							case "minimal":
 								nextMode = config.VisualMinimal
 							case "quiet":
@@ -961,7 +963,7 @@ func (a *App) startPlaybackRenderer(ctrl *playback.Controller, session *Session,
 					})
 					return "next"
 				case 'v', 'V': // Cycle visuals
-					modes := []config.VisualMode{config.VisualWave, config.VisualSpectrum, config.VisualPulse, config.VisualMinimal, config.VisualQuiet}
+					modes := []config.VisualMode{config.VisualWave, config.VisualSpectrum, config.VisualPulse, config.VisualFire, config.VisualMinimal, config.VisualQuiet}
 					nextMode := config.VisualWave
 					for idx, m := range modes {
 						if m == a.cfg.Visual.Mode {

@@ -511,18 +511,21 @@ func (b *windowsMediaBackend) Available() bool {
 }
 
 func (b *windowsMediaBackend) Start(ctx context.Context, streamURL string, stderr io.Writer) (*exec.Cmd, error) {
-	// Use PowerShell with Windows Media Player COM object for streaming.
+	// Escape single quotes for PowerShell single-quoted string literal
+	escapedURL := strings.ReplaceAll(streamURL, "'", "''")
 	psScript := fmt.Sprintf(`
-$wmp = New-Object -ComObject WMPlayer.OCX
-$wmp.settings.volume = 80
-$wmp.URL = "%s"
-$wmp.controls.play()
-while ($wmp.playState -ne 1) { Start-Sleep -Milliseconds 500 }
-`, streamURL)
+Add-Type -AssemblyName PresentationCore
+$player = New-Object System.Windows.Media.MediaPlayer
+$player.Volume = 0.8
+$player.Open([Uri]'%s')
+$player.Play()
+while ($true) { Start-Sleep -Seconds 1 }
+`, escapedURL)
 
 	cmd := exec.CommandContext(ctx, "powershell",
 		"-NonInteractive",
 		"-NoProfile",
+		"-STA",
 		"-Command", psScript,
 	)
 	cmd.Stdout = io.Discard
