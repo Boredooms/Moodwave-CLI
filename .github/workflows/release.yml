@@ -95,6 +95,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -146,6 +148,18 @@ jobs:
           sha256sum -c moodwave-<platform>.sha256
           ```
           EOF
+
+          # Append dynamic git commit changelog
+          echo -e "\n## Changelog" >> release_notes.md
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+              echo -e "Changes since **$PREV_TAG**:\n" >> release_notes.md
+              git log ${PREV_TAG}..HEAD --oneline --pretty=format:"- %s (%h)" >> release_notes.md
+          else
+              echo -e "Initial changes:\n" >> release_notes.md
+              git log -n 30 --oneline --pretty=format:"- %s (%h)" >> release_notes.md
+          fi
+          echo -e "\n" >> release_notes.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
