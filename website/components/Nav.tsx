@@ -7,8 +7,9 @@ export default function Nav({ version = "v1.0.1" }: { version?: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const links = [
-    { href: "#how-it-works", label: "How it works" },
-    { href: "#install", label: "Install" },
+    { href: "/#how-it-works", label: "How it works" },
+    { href: "/#install", label: "Install" },
+    { href: "/changelog", label: "Changelog" },
     { href: "https://github.com/Boredooms/Moodwave-CLI", label: "GitHub", external: true },
   ];
 
