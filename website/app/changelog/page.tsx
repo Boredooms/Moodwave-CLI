@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Nav from "../../components/Nav";
+import SplitText from "../../components/ui/SplitText";
+import FadeIn from "../../components/ui/FadeIn";
 import { 
   Flame, 
   Terminal, 
@@ -349,22 +351,41 @@ export default function Changelog() {
   const latestVersion = releases[0]?.version || "v1.0.5";
 
   return (
-    <div style={{ background: "#080808", minHeight: "100vh", color: "#ffffff", paddingBottom: "100px" }}>
+    <div style={{ background: "#080808", minHeight: "100vh", color: "#ffffff", paddingBottom: "100px", position: "relative" }}>
+      {/* Subtle grid */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-[0.025]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px)",
+          backgroundSize: "64px 64px",
+        }}
+      />
+
+      {/* Top subtle glow */}
+      <div
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] pointer-events-none"
+        style={{
+          background: "radial-gradient(ellipse at center top, rgba(255,255,255,0.02) 0%, transparent 70%)",
+        }}
+      />
+
       <Nav version={latestVersion} />
 
       {/* Hero Header */}
       <section className="relative pt-32 pb-16 overflow-hidden border-b border-white/[0.05]">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/[0.03] via-transparent to-transparent pointer-events-none" />
-        <div className="container-page text-center">
+        <div className="container-page text-center relative z-10">
           <p className="font-mono text-xs text-[#555] uppercase tracking-[0.2em] mb-4">
-            Version History & Timeline
+            <SplitText text="Version History & Timeline" by="chars" delay={0.15} stagger={0.03} direction="down" />
           </p>
           <h1 className="font-mono font-semibold text-white tracking-tight leading-tight mb-5" style={{ fontSize: "clamp(2rem, 5vw, 3.5rem)" }}>
-            Changelog
+            <SplitText text="Changelog" by="chars" delay={0.35} stagger={0.05} direction="down" />
           </h1>
-          <p className="text-[#666] max-w-xl mx-auto text-sm md:text-base leading-relaxed">
-            Follow the journey of Moodwave CLI as it evolves from a lightweight mood audio scanner to a highly optimized terminal companion.
-          </p>
+          <FadeIn delay={0.7} y={15}>
+            <p className="text-[#666] max-w-xl mx-auto text-sm md:text-base leading-relaxed">
+              Follow the journey of Moodwave CLI as it evolves from a lightweight mood audio scanner to a highly optimized terminal companion.
+            </p>
+          </FadeIn>
         </div>
       </section>
 
@@ -638,7 +659,6 @@ export default function Changelog() {
                         >
                           <div className="p-6 md:p-8 space-y-8">
                             {/* Embedded Interactive Visualization */}
-                            {release.version === "v1.0.5" && <CIWorkflowSimulator />}
                             {release.version === "v1.0.4" && <FireplaceSimulator />}
                             {release.version === "v1.0.2" && <ConsoleMenuSimulator />}
                             {release.version === "v1.0.0" && <AudioEqualizerSimulator />}
@@ -962,93 +982,5 @@ function AudioEqualizerSimulator() {
   );
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// v1.0.5 Interactive CI Workflow Simulator Component
-// ──────────────────────────────────────────────────────────────────────────────
-function CIWorkflowSimulator() {
-  const [logs, setLogs] = useState<string[]>([]);
-  const [status, setStatus] = useState<"idle" | "running" | "done">("idle");
-  const logQueue = [
-    "🚀 Starting GitHub Release Workflow (v1.0.5)...",
-    "📦 Checking out repository branch: main",
-    "🔧 Initializing Go build tools (v1.22.0)...",
-    "⚙️ Compiling cross-platform targets...",
-    "   └─ moodwave-windows-amd64.exe (8.0 MB)",
-    "   └─ moodwave-darwin-arm64 (8.0 MB)",
-    "   └─ moodwave-linux-amd64 (8.0 MB)",
-    "🧪 Running unit validation tests...",
-    "   └─ PASS: internal/config test suite",
-    "   └─ PASS: internal/visuals/fireplace test suite",
-    "📝 Generating release notes dynamically...",
-    "   └─ Found previous tag: v1.0.4",
-    "   └─ Appended commit delta since v1.0.4 (3 commits)",
-    "📤 Uploading binaries to GitHub Releases...",
-    "⚡ Updating web app changelog metrics database...",
-    "🎉 Release v1.0.5 is now LIVE on GitHub!"
-  ];
 
-  const runWorkflow = () => {
-    if (status === "running") return;
-    setStatus("running");
-    setLogs([]);
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i < logQueue.length) {
-        setLogs(prev => [...prev, logQueue[i]]);
-        i++;
-      } else {
-        clearInterval(interval);
-        setStatus("done");
-      }
-    }, 450);
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between text-xs font-mono">
-        <div className="flex items-center gap-2 text-[#555]">
-          <Cpu className="w-3.5 h-3.5 text-indigo-400" />
-          <span>Interactive CI Workflow Simulator (v1.0.5)</span>
-        </div>
-        <button
-          onClick={runWorkflow}
-          disabled={status === "running"}
-          className={`px-3 py-1 rounded font-mono text-[10px] cursor-pointer transition-all ${
-            status === "running"
-              ? "bg-white/10 text-white/50 cursor-not-allowed"
-              : "bg-indigo-600/30 border border-indigo-500/50 text-indigo-200 hover:bg-indigo-600/50"
-          }`}
-        >
-          {status === "idle" ? "Run Build" : status === "running" ? "Building..." : "Run Again"}
-        </button>
-      </div>
-
-      <div className="terminal-frame" style={{ background: "#050505" }}>
-        <div className="terminal-titlebar">
-          <div className="terminal-dot bg-rose-500/80" />
-          <div className="terminal-dot bg-amber-500/80" />
-          <div className="terminal-dot bg-emerald-500/80" />
-          <span className="font-mono text-xs text-[#444] ml-2">moodwave - release-ci-runner</span>
-        </div>
-        <div className="terminal-body font-mono py-4 px-5 text-left h-[180px] overflow-y-auto space-y-1.5 select-none" style={{ fontSize: "11px", lineHeight: "1.4" }}>
-          {logs.length === 0 && (
-            <div className="text-[#444] italic animate-pulse">Click "Run Build" above to trigger release automation pipeline...</div>
-          )}
-          {logs.map((log, idx) => (
-            <div 
-              key={idx} 
-              className={
-                log.includes("PASS") ? "text-emerald-400" :
-                log.includes("LIVE") || log.includes("🎉") ? "text-indigo-400 font-bold" :
-                log.includes("└─") ? "text-neutral-500" : "text-[#888]"
-              }
-            >
-              {log}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
