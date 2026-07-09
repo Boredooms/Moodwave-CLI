@@ -503,8 +503,8 @@ func (r *Renderer) renderVisualPanel(out *strings.Builder, width int, state Rend
 
 // renderFireplace renders a cozy cellular-automaton fireplace.
 func (r *Renderer) renderFireplace(out *strings.Builder, width int, energy float64, frame int) {
-	fireRows := 10
-	fireCols := width
+	fireRows := 7
+	fireCols := width - 2
 	if fireCols < 1 {
 		fireCols = 1
 	}
@@ -517,26 +517,26 @@ func (r *Renderer) renderFireplace(out *strings.Builder, width int, energy float
 		}
 	}
 
-	// Define characters and colors for the fireplace flames.
+	// Define characters and basic 16-color ANSI codes for maximum terminal compatibility.
 	// Index 0 represents empty/cool. Highest index represents hottest flame.
 	var firePalette = []struct {
 		char  string
 		color string
 	}{
 		{" ", ""},
-		{".", "\033[38;5;236m"}, // very dim gray
-		{",", "\033[38;5;52m"},  // dark red
-		{"*", "\033[38;5;88m"},  // red-brown
-		{"x", "\033[38;5;124m"}, // medium red
-		{"s", "\033[38;5;160m"}, // red
-		{"o", "\033[38;5;196m"}, // bright red
-		{"d", "\033[38;5;202m"}, // orange-red
-		{"m", "\033[38;5;208m"}, // orange
-		{"0", "\033[38;5;214m"}, // yellow-orange
-		{"H", "\033[38;5;220m"}, // yellow
-		{"M", "\033[38;5;226m"}, // bright yellow
-		{"W", "\033[38;5;230m"}, // warm white
-		{"█", "\033[97m"},        // bright white
+		{".", "\033[90m"},    // dark gray
+		{",", "\033[90m"},    // dark gray
+		{"*", "\033[31m"},    // red
+		{"x", "\033[31m"},    // red
+		{"s", "\033[31m"},    // red
+		{"o", "\033[91m"},    // bright red
+		{"d", "\033[91m"},    // bright red
+		{"m", "\033[33m"},    // yellow/orange
+		{"0", "\033[33m"},    // yellow/orange
+		{"H", "\033[93m"},    // bright yellow
+		{"M", "\033[93m"},    // bright yellow
+		{"W", "\033[97m"},    // bright white
+		{"█", "\033[1;97m"},  // bold bright white
 	}
 
 	// Fallback palette for monochrome/NoUnicode
@@ -546,13 +546,40 @@ func (r *Renderer) renderFireplace(out *strings.Builder, width int, energy float
 
 	maxHeat := len(firePalette) - 1
 
-	// Seed the bottom row (heat source)
+	// Seed the bottom row in three distinct fireplace peaks: left (small), center (large), right (medium)
 	for col := 0; col < fireCols; col++ {
-		if rand.Intn(100) < 85 {
-			r.fireGrid[0][col] = maxHeat
-		} else {
-			r.fireGrid[0][col] = maxHeat - 2
+		t := float64(col) / float64(fireCols)
+
+		// Overlapping Gaussian bell curves to create flame mounds
+		intensity := 0.0
+		// Center peak (x = 0.5)
+		intensity += math.Exp(-math.Pow((t-0.5)/0.12, 2)) * 1.0
+		// Left peak (x = 0.22)
+		intensity += math.Exp(-math.Pow((t-0.22)/0.07, 2)) * 0.65
+		// Right peak (x = 0.78)
+		intensity += math.Exp(-math.Pow((t-0.78)/0.08, 2)) * 0.75
+
+		if intensity > 1.0 {
+			intensity = 1.0
 		}
+
+		// Taper edges completely
+		if t < 0.08 || t > 0.92 {
+			intensity = 0
+		}
+
+		heatVal := int(intensity * float64(maxHeat))
+
+		// Add flickering ember variation
+		if heatVal > 0 {
+			flicker := rand.Intn(3)
+			heatVal -= flicker
+			if heatVal < 0 {
+				heatVal = 0
+			}
+		}
+
+		r.fireGrid[0][col] = heatVal
 	}
 
 	// Propagate the flame upwards (cellular automaton style)
@@ -568,7 +595,7 @@ func (r *Renderer) renderFireplace(out *strings.Builder, width int, energy float
 			if energy > 0.6 {
 				decayProb = 24
 			} else if energy < 0.35 {
-				decayProb = 55
+				decayProb = 52
 			}
 
 			decay := rand.Intn(2) // 0 or 1
@@ -584,9 +611,10 @@ func (r *Renderer) renderFireplace(out *strings.Builder, width int, energy float
 		}
 	}
 
-	// Render the fire grid (top to bottom)
+	// Render the fire grid (top to bottom) with safe margins to prevent wrapping
 	for y := fireRows - 1; y >= 0; y-- {
 		var sb strings.Builder
+		sb.WriteString(" ") // left padding
 		for x := 0; x < fireCols; x++ {
 			heat := r.fireGrid[y][x]
 			cell := firePalette[heat]
@@ -600,7 +628,8 @@ func (r *Renderer) renderFireplace(out *strings.Builder, width int, energy float
 				}
 			}
 		}
-		out.WriteString(sb.String() + "\n")
+		sb.WriteString(" \n") // right padding and newline
+		out.WriteString(sb.String())
 	}
 }
 
