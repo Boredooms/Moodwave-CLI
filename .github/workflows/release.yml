@@ -152,13 +152,36 @@ jobs:
           # Append dynamic git commit changelog
           echo -e "\n## Changelog" >> release_notes.md
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
           if [ -n "$PREV_TAG" ]; then
               echo -e "Changes since **$PREV_TAG**:\n" >> release_notes.md
-              git log ${PREV_TAG}..HEAD --oneline --pretty=format:"- %s (%h)" >> release_notes.md
+              COMMITS=$(git log ${PREV_TAG}..HEAD --oneline --pretty=format:"%s (%h)")
           else
               echo -e "Initial changes:\n" >> release_notes.md
-              git log -n 30 --oneline --pretty=format:"- %s (%h)" >> release_notes.md
+              COMMITS=$(git log -n 30 --oneline --pretty=format:"%s (%h)")
           fi
+
+          # Filter and group commits by category
+          echo "$COMMITS" | grep -iE '^(feat|add)' | sed 's/^/- /' > feats.txt || true
+          echo "$COMMITS" | grep -iE '^(fix|patch|bug)' | sed 's/^/- /' > fixes.txt || true
+          echo "$COMMITS" | grep -ivE '^(feat|add|fix|patch|bug)' | sed 's/^/- /' > chores.txt || true
+
+          if [ -s feats.txt ]; then
+              echo -e "### 🚀 Features\n" >> release_notes.md
+              cat feats.txt >> release_notes.md
+              echo -e "\n" >> release_notes.md
+          fi
+          if [ -s fixes.txt ]; then
+              echo -e "### 🐛 Bug Fixes\n" >> release_notes.md
+              cat fixes.txt >> release_notes.md
+              echo -e "\n" >> release_notes.md
+          fi
+          if [ -s chores.txt ]; then
+              echo -e "### ⚙️ Maintenance & Chores\n" >> release_notes.md
+              cat chores.txt >> release_notes.md
+              echo -e "\n" >> release_notes.md
+          fi
+
           echo -e "\n" >> release_notes.md
 
       - name: Create GitHub Release

@@ -39,6 +39,30 @@ interface ReleaseItem {
 
 const staticReleases: ReleaseItem[] = [
   {
+    version: "v1.0.5",
+    date: "July 10, 2026",
+    title: "Dynamic Changelog Engine & Unshallow CI Actions",
+    summary: "Introducing dynamic GitHub release parsing for the website and unshallow repository depth git-log delta builders in the release workflow.",
+    githubUrl: "https://github.com/Boredooms/Moodwave-CLI/releases/tag/v1.0.5",
+    features: [
+      "Dynamic Release Pipeline: Added GitHub API polling and heuristic text parsing to merge live and static releases on `/changelog`.",
+      "Unshallow CI Checkout: Set `fetch-depth: 0` in release actions to enable historical git descriptions and commit log analysis.",
+      "Auto-parsed Delta Generator: Automates the generation of a clean, commit-level delta to release notes for every version tag."
+    ],
+    fixes: [
+      "Dynamic Nav versioning: Fixed hardcoded navbar versions by reading the latest live version tag from the API state."
+    ],
+    performance: [
+      "Optimized release notes footprint: Generated minimal changelog notes under release descriptions."
+    ],
+    metrics: {
+      binarySize: "8.0 MB",
+      scanLatency: "0.3 ms",
+      themes: 9,
+      visualizers: 6
+    }
+  },
+  {
     version: "v1.0.4",
     date: "July 09, 2026",
     title: "The Fireplace Update & PresentationCore Migration",
@@ -61,6 +85,30 @@ const staticReleases: ReleaseItem[] = [
       scanLatency: "0.3 ms",
       themes: 9,
       visualizers: 6
+    }
+  },
+  {
+    version: "v1.0.3",
+    date: "July 09, 2026",
+    title: "Command Block Polish & Layout Refinements",
+    summary: "Improving website code block spacing, fixing layout overflows on mobile viewports, and custom branding assets.",
+    githubUrl: "https://github.com/Boredooms/Moodwave-CLI/releases/tag/v1.0.3",
+    features: [
+      "Custom Brand Assets: Embedded a custom SVG favicon, vector logos, and a high-fidelity root repository README architecture chart.",
+      "Viewport-safe layout: Redesigned the terminal visualizer emulation grid to flex and scale nicely on mobile viewports."
+    ],
+    fixes: [
+      "CommandBlock scroll fix: Allowed horizontal code scrolling for terminal install commands without stretching containers.",
+      "CommandBlock padding adjustments: Shrunk code block sizes to text-xs to achieve perfect visual proportions."
+    ],
+    performance: [
+      "Removed redundant files: Deleted unused build and deploy guides to keep repository footprint clean."
+    ],
+    metrics: {
+      binarySize: "8.1 MB",
+      scanLatency: "0.4 ms",
+      themes: 9,
+      visualizers: 5
     }
   },
   {
@@ -89,6 +137,30 @@ const staticReleases: ReleaseItem[] = [
     }
   },
   {
+    version: "v1.0.1",
+    date: "July 07, 2026",
+    title: "Dynamic Version Tracking & Platform Targets",
+    summary: "Implementing dynamic version tag fetching on the web app and renaming platform build names to resolve install script targets.",
+    githubUrl: "https://github.com/Boredooms/Moodwave-CLI/releases/tag/v1.0.1",
+    features: [
+      "Live CLI Release Tracking: Configured the homepage to query live GitHub tags to state CLI version immediately.",
+      "Smooth Scrolling & Transitions: Integrated Lenis smooth scroll and GSAP scroll-triggers for interactive section reveals."
+    ],
+    fixes: [
+      "Platform name mismatch: Renamed the armv7 build target to arm to align with the installation script expectations.",
+      "CLI Update command: Fixed the self-upgrade command dispatcher routing path."
+    ],
+    performance: [
+      "Go module resolution: Patched x/sys and x/term imports to allow compatibility back to Go 1.22.0."
+    ],
+    metrics: {
+      binarySize: "8.8 MB",
+      scanLatency: "18 ms",
+      themes: 3,
+      visualizers: 3
+    }
+  },
+  {
     version: "v1.0.0",
     date: "July 01, 2026",
     title: "Initial Launch — Inferring Codebase Mood",
@@ -114,10 +186,29 @@ const staticReleases: ReleaseItem[] = [
   }
 ];
 
+
+// Helper to generate a smooth cubic bezier path for an array of points
+function getBezierPath(pts: { x: number; y: number }[]) {
+  if (pts.length === 0) return "";
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const curr = pts[i];
+    const next = pts[i + 1];
+    const cp1x = curr.x + (next.x - curr.x) / 3;
+    const cp1y = curr.y;
+    const cp2x = curr.x + 2 * (next.x - curr.x) / 3;
+    const cp2y = next.y;
+    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${next.x} ${next.y}`;
+  }
+  return d;
+}
+
 export default function Changelog() {
   const [releases, setReleases] = useState<ReleaseItem[]>(staticReleases);
   const [activeMetricTab, setActiveMetricTab] = useState<"size" | "speed" | "themes">("speed");
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
+    "v1.0.5": true,
     "v1.0.4": true,
     "v1.0.2": true,
     "v1.0.0": false,
@@ -155,7 +246,14 @@ export default function Changelog() {
             }
 
             // Parse markdown release descriptions into categories
-            const bodyLines = gitRelease.body ? gitRelease.body.split("\n") : [];
+            let bodyText = gitRelease.body || "";
+            // Extract text ONLY after ## Changelog header if present, to skip installation blocks
+            const changelogIdx = bodyText.indexOf("## Changelog");
+            if (changelogIdx !== -1) {
+              bodyText = bodyText.slice(changelogIdx + 12);
+            }
+
+            const bodyLines = bodyText.split("\n");
             const features: string[] = [];
             const fixes: string[] = [];
             const performance: string[] = [];
@@ -163,32 +261,61 @@ export default function Changelog() {
             let currentCat = features;
             for (let line of bodyLines) {
               line = line.trim();
-              if (line.toLowerCase().includes("fix") || line.toLowerCase().includes("bug")) {
-                currentCat = fixes;
-              } else if (line.toLowerCase().includes("perf") || line.toLowerCase().includes("speed")) {
-                currentCat = performance;
-              } else if (line.toLowerCase().includes("feat") || line.toLowerCase().includes("add")) {
+              if (!line) continue;
+
+              // Filter out installation keywords to keep visual clean
+              if (line.includes("irm https") || line.includes("curl -") || line.includes("iex") || line.includes("moodwave doctor") || line.includes("sha256sum") || line.includes("| Platform")) {
+                continue;
+              }
+
+              // Switch categories based on headings or text clues
+              const lowerLine = line.toLowerCase();
+              if (lowerLine.includes("### 🚀 features") || lowerLine.includes("features")) {
                 currentCat = features;
+                continue;
+              } else if (lowerLine.includes("### 🐛 bug fixes") || lowerLine.includes("fix") || lowerLine.includes("bug")) {
+                currentCat = fixes;
+                continue;
+              } else if (lowerLine.includes("### ⚙️") || lowerLine.includes("perf") || lowerLine.includes("speed") || lowerLine.includes("chore") || lowerLine.includes("ci")) {
+                currentCat = performance;
+                continue;
               }
               
               if (line.startsWith("-") || line.startsWith("*")) {
                 const bullet = line.slice(1).trim();
-                if (bullet) currentCat.push(bullet);
+                if (bullet && !bullet.startsWith("##") && !bullet.startsWith("###")) currentCat.push(bullet);
               } else if (line.match(/^\d+\./)) {
                 const bullet = line.replace(/^\d+\./, "").trim();
-                if (bullet) currentCat.push(bullet);
+                if (bullet && !bullet.startsWith("##") && !bullet.startsWith("###")) currentCat.push(bullet);
+              } else if (line.startsWith("###") || line.startsWith("##")) {
+                // Skip headers
+                continue;
+              } else {
+                // If it is just a plain commit entry or line
+                if (line.length > 5 && !line.includes("|") && !line.includes("---")) {
+                  currentCat.push(line);
+                }
               }
             }
 
-            if (features.length === 0 && fixes.length === 0 && performance.length === 0 && gitRelease.body) {
-              features.push(gitRelease.body.slice(0, 300) + (gitRelease.body.length > 300 ? "..." : ""));
+            // Extract a clean title and summary (avoiding ## Installation as title/summary)
+            let title = gitRelease.name || `Release ${version}`;
+            if (title.startsWith("v")) {
+              title = `Release ${title}`;
+            }
+
+            let summary = "Updates and performance enhancements.";
+            if (features.length > 0) {
+              summary = features[0].length > 150 ? features[0].slice(0, 150) + "..." : features[0];
+            } else if (fixes.length > 0) {
+              summary = fixes[0].length > 150 ? fixes[0].slice(0, 150) + "..." : fixes[0];
             }
 
             return {
               version,
               date: formattedDate,
-              title: gitRelease.name || `Release ${version}`,
-              summary: gitRelease.body ? gitRelease.body.split("\n")[0].slice(0, 150) + "..." : "Updates and improvements.",
+              title,
+              summary,
               githubUrl: gitRelease.html_url,
               features: features.length > 0 ? features : ["Refer to GitHub release details."],
               fixes,
@@ -244,8 +371,11 @@ export default function Changelog() {
       {/* Codebase Evolution Metrics Dashboard */}
       <section className="py-12 border-b border-white/[0.05] bg-white/[0.01]">
         <div className="container-page">
-          <div className="border border-white/[0.06] rounded-xl bg-white/[0.01] p-6 md:p-8">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
+          <div className="border border-white/[0.08] rounded-2xl bg-zinc-950/40 p-6 md:p-8 backdrop-blur-md shadow-2xl relative overflow-hidden">
+            {/* Glowing background blob */}
+            <div className="absolute -right-32 -top-32 w-96 h-96 rounded-full bg-white/[0.01] blur-[120px] pointer-events-none" />
+
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8 relative z-10">
               <div>
                 <span className="font-mono text-xs text-[#444] uppercase tracking-widest block mb-1">Interactive Dashboard</span>
                 <h3 className="font-mono font-medium text-white text-lg">Codebase Evolution Over Time</h3>
@@ -265,127 +395,171 @@ export default function Changelog() {
               </div>
             </div>
 
-            {/* Interactive SVG Graphs */}
-            <div className="h-[240px] w-full flex items-end relative border-b border-white/[0.05] pb-2">
-              <AnimatePresence mode="wait">
-                {activeMetricTab === "speed" && (
-                  <motion.div
-                    key="speed-chart"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="absolute inset-0 flex items-end"
-                  >
-                    <svg className="w-full h-full" viewBox="0 0 800 200" preserveAspectRatio="none">
-                      <defs>
-                        <linearGradient id="speedGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#ef4444" stopOpacity="0.2" />
-                          <stop offset="100%" stopColor="#ef4444" stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      {/* Area */}
-                      <path 
-                        d="M 50 160 L 400 30 L 750 10 L 750 200 L 50 200 Z" 
-                        fill="url(#speedGrad)" 
-                        className="transition-all duration-700 ease-in-out"
-                      />
-                      {/* Line */}
-                      <path 
-                        d="M 50 160 L 400 30 L 750 10" 
-                        fill="none" 
-                        stroke="#ef4444" 
-                        strokeWidth="2" 
-                        strokeDasharray="4 4"
-                      />
-                      {/* Nodes */}
-                      <circle cx="50" cy="160" r="5" fill="#ef4444" />
-                      <circle cx="400" cy="30" r="5" fill="#ef4444" />
-                      <circle cx="750" cy="10" r="5" fill="#ef4444" />
-                      {/* Text */}
-                      <text x="50" y="140" fill="#666" fontSize="10" fontFamily="monospace">v1.0.0: 1500ms</text>
-                      <text x="370" y="50" fill="#666" fontSize="10" fontFamily="monospace">v1.0.2: 0.4ms</text>
-                      <text x="690" y="30" fill="#ef4444" fontSize="10" fontFamily="monospace" fontWeight="bold">v1.0.4: 0.3ms</text>
-                    </svg>
-                  </motion.div>
-                )}
+            {/* Interactive Spline Graph */}
+            {(() => {
+              const chartData = [
+                { version: "v1.0.0", speed: 1500, size: 8.9, themes: 3, labelSpeed: "1500ms", labelSize: "8.9MB", labelThemes: "3 themes", date: "Jul 1" },
+                { version: "v1.0.1", speed: 18,   size: 8.8, themes: 3, labelSpeed: "18ms",   labelSize: "8.8MB", labelThemes: "3 themes", date: "Jul 7" },
+                { version: "v1.0.2", speed: 0.4,  size: 8.1, themes: 9, labelSpeed: "0.4ms",  labelSize: "8.1MB", labelThemes: "9 themes", date: "Jul 7" },
+                { version: "v1.0.3", speed: 0.4,  size: 8.1, themes: 9, labelSpeed: "0.4ms",  labelSize: "8.1MB", labelThemes: "9 themes", date: "Jul 9" },
+                { version: "v1.0.4", speed: 0.3,  size: 8.0, themes: 9, labelSpeed: "0.3ms",  labelSize: "8.0MB", labelThemes: "9 themes", date: "Jul 9" },
+                { version: "v1.0.5", speed: 0.3,  size: 8.0, themes: 9, labelSpeed: "0.3ms",  labelSize: "8.0MB", labelThemes: "9 themes", date: "Jul 10" },
+              ];
 
-                {activeMetricTab === "size" && (
-                  <motion.div
-                    key="size-chart"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="absolute inset-0 flex items-end"
-                  >
-                    <svg className="w-full h-full" viewBox="0 0 800 200" preserveAspectRatio="none">
-                      <defs>
-                        <linearGradient id="sizeGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
-                          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      <path 
-                        d="M 50 30 L 400 110 L 750 130 L 750 200 L 50 200 Z" 
-                        fill="url(#sizeGrad)"
-                      />
-                      <path 
-                        d="M 50 30 L 400 110 L 750 130" 
-                        fill="none" 
-                        stroke="#3b82f6" 
-                        strokeWidth="2"
-                      />
-                      <circle cx="50" cy="30" r="5" fill="#3b82f6" />
-                      <circle cx="400" cy="110" r="5" fill="#3b82f6" />
-                      <circle cx="750" cy="130" r="5" fill="#3b82f6" />
-                      <text x="50" y="50" fill="#666" fontSize="10" fontFamily="monospace">v1.0.0: 8.9MB</text>
-                      <text x="370" y="90" fill="#666" fontSize="10" fontFamily="monospace">v1.0.2: 8.1MB</text>
-                      <text x="690" y="150" fill="#3b82f6" fontSize="10" fontFamily="monospace" fontWeight="bold">v1.0.4: 8.0MB</text>
-                    </svg>
-                  </motion.div>
-                )}
+              const xCoords = [60, 196, 332, 468, 604, 740];
+              const points = chartData.map((d, idx) => {
+                let y = 160;
+                if (activeMetricTab === "speed") {
+                  const ys = [160, 95, 35, 35, 31, 30];
+                  y = ys[idx];
+                } else if (activeMetricTab === "size") {
+                  const ys = [160, 148, 45, 45, 32, 30];
+                  y = ys[idx];
+                } else {
+                  const ys = [160, 160, 30, 30, 30, 30];
+                  y = ys[idx];
+                }
+                return { 
+                  x: xCoords[idx], 
+                  y, 
+                  label: activeMetricTab === "speed" ? d.labelSpeed : activeMetricTab === "size" ? d.labelSize : d.labelThemes, 
+                  version: d.version,
+                  date: d.date
+                };
+              });
 
-                {activeMetricTab === "themes" && (
-                  <motion.div
-                    key="themes-chart"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="absolute inset-0 flex items-end"
-                  >
-                    <svg className="w-full h-full" viewBox="0 0 800 200" preserveAspectRatio="none">
-                      <defs>
-                        <linearGradient id="themesGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#10b981" stopOpacity="0.2" />
-                          <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      <path 
-                        d="M 50 150 L 400 40 L 750 40 L 750 200 L 50 200 Z" 
-                        fill="url(#themesGrad)"
-                      />
-                      <path 
-                        d="M 50 150 L 400 40 L 750 40" 
-                        fill="none" 
-                        stroke="#10b981" 
-                        strokeWidth="2"
-                      />
-                      <circle cx="50" cy="150" r="5" fill="#10b981" />
-                      <circle cx="400" cy="40" r="5" fill="#10b981" />
-                      <circle cx="750" cy="40" r="5" fill="#10b981" />
-                      <text x="50" y="130" fill="#666" fontSize="10" fontFamily="monospace">v1.0.0: 3 themes</text>
-                      <text x="360" y="60" fill="#666" fontSize="10" fontFamily="monospace">v1.0.2: 9 themes</text>
-                      <text x="690" y="60" fill="#10b981" fontSize="10" fontFamily="monospace" fontWeight="bold">v1.0.4: 9 themes</text>
-                    </svg>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-            
+              const strokeColor = activeMetricTab === "speed" ? "#ef4444" : activeMetricTab === "size" ? "#3b82f6" : "#10b981";
+              const gradId = `${activeMetricTab}Grad`;
+              const linePath = getBezierPath(points);
+              const areaPath = `${linePath} L 740 180 L 60 180 Z`;
+
+              return (
+                <div className="h-[260px] w-full relative pb-4 z-10" onMouseLeave={() => setHoveredIdx(null)}>
+                  {/* Tooltip Overlay */}
+                  {hoveredIdx !== null && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="absolute bg-[#121214]/90 border border-white/[0.08] rounded-xl p-3 shadow-2xl backdrop-blur-md pointer-events-none transition-all duration-150"
+                      style={{
+                        left: `${(points[hoveredIdx].x / 800) * 100}%`,
+                        bottom: `${100 - (points[hoveredIdx].y / 200) * 100 + 8}%`,
+                        transform: "translateX(-50%)",
+                        zIndex: 30
+                      }}
+                    >
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="font-mono text-[9px] font-semibold px-1.5 py-0.5 bg-white/[0.06] border border-white/[0.08] rounded text-white/50">{points[hoveredIdx].version}</span>
+                        <span className="font-mono text-[9px] text-[#555]">{points[hoveredIdx].date}</span>
+                      </div>
+                      <div className="font-mono text-xs font-bold text-white">{points[hoveredIdx].label}</div>
+                      <div className="font-mono text-[8px] text-[#666] mt-0.5">
+                        {activeMetricTab === "speed" ? "Execution speed latency" : activeMetricTab === "size" ? "CLI static binary footprint" : "Configurable color presets"}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  <svg className="w-full h-full" viewBox="0 0 800 200" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="speedGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#ef4444" stopOpacity="0.25" />
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity="0" />
+                      </linearGradient>
+                      <linearGradient id="sizeGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                      </linearGradient>
+                      <linearGradient id="themesGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
+                        <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+
+                    {/* Horizontal helper dashed grid lines */}
+                    {[30, 80, 130, 180].map((gridY, i) => (
+                      <g key={gridY} className="opacity-40">
+                        <line x1="60" y1={gridY} x2="740" y2={gridY} stroke="white" strokeWidth="0.5" strokeDasharray="3 6" />
+                        <text x="25" y={gridY + 3} fill="#444" fontSize="8" fontFamily="monospace">
+                          {i === 0 ? "PEAK" : i === 1 ? "MID" : i === 2 ? "SLOW" : "INIT"}
+                        </text>
+                      </g>
+                    ))}
+
+                    {/* Chart Area Fill */}
+                    <motion.path 
+                      d={areaPath} 
+                      fill={`url(#${gradId})`} 
+                      animate={{ d: areaPath }}
+                      transition={{ duration: 0.4, ease: "easeInOut" }}
+                    />
+
+                    {/* Spline Line */}
+                    <motion.path 
+                      d={linePath} 
+                      fill="none" 
+                      stroke={strokeColor} 
+                      strokeWidth="2" 
+                      animate={{ d: linePath }}
+                      transition={{ duration: 0.4, ease: "easeInOut" }}
+                    />
+
+                    {/* Version nodes and labels */}
+                    {points.map((pt, idx) => {
+                      const isHovered = hoveredIdx === idx;
+                      return (
+                        <g key={pt.version}>
+                          {/* Inner glowing circle */}
+                          <circle 
+                            cx={pt.x} 
+                            cy={pt.y} 
+                            r={isHovered ? "7" : "4"} 
+                            fill={strokeColor} 
+                            className="transition-all duration-150"
+                            style={{ filter: isHovered ? `drop-shadow(0 0 6px ${strokeColor})` : "none" }}
+                          />
+                          {/* Outer halo */}
+                          <circle 
+                            cx={pt.x} 
+                            cy={pt.y} 
+                            r={isHovered ? "12" : "8"} 
+                            fill="none" 
+                            stroke={strokeColor} 
+                            strokeWidth="1" 
+                            strokeOpacity={isHovered ? "0.6" : "0.15"}
+                            className="transition-all duration-150"
+                          />
+                          {/* X-axis version tags */}
+                          <text 
+                            x={pt.x} 
+                            y="196" 
+                            textAnchor="middle" 
+                            fill={isHovered ? "#fff" : "#444"} 
+                            fontSize="8" 
+                            fontFamily="monospace"
+                            className="transition-colors duration-150"
+                          >
+                            {pt.version}
+                          </text>
+
+                          {/* Interactive invisible hover target */}
+                          <circle 
+                            cx={pt.x} 
+                            cy={pt.y} 
+                            r="24" 
+                            fill="transparent" 
+                            className="cursor-pointer"
+                            onMouseEnter={() => setHoveredIdx(idx)}
+                          />
+                        </g>
+                      );
+                    })}
+                  </svg>
+                </div>
+              );
+            })()}
+
             {/* Visual indicators */}
-            <div className="grid grid-cols-3 gap-4 mt-6 text-center">
+            <div className="grid grid-cols-3 gap-4 mt-6 text-center relative z-10 border-t border-white/[0.04] pt-6">
               <div className="border-r border-white/[0.05] last:border-r-0">
                 <span className="text-[10px] font-mono text-[#555] uppercase tracking-widest block mb-1">Code Scan Speed</span>
                 <span className="font-mono text-sm md:text-base font-semibold text-white">99.98% Optimized</span>
@@ -464,6 +638,7 @@ export default function Changelog() {
                         >
                           <div className="p-6 md:p-8 space-y-8">
                             {/* Embedded Interactive Visualization */}
+                            {release.version === "v1.0.5" && <CIWorkflowSimulator />}
                             {release.version === "v1.0.4" && <FireplaceSimulator />}
                             {release.version === "v1.0.2" && <ConsoleMenuSimulator />}
                             {release.version === "v1.0.0" && <AudioEqualizerSimulator />}
@@ -786,3 +961,94 @@ function AudioEqualizerSimulator() {
     </div>
   );
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// v1.0.5 Interactive CI Workflow Simulator Component
+// ──────────────────────────────────────────────────────────────────────────────
+function CIWorkflowSimulator() {
+  const [logs, setLogs] = useState<string[]>([]);
+  const [status, setStatus] = useState<"idle" | "running" | "done">("idle");
+  const logQueue = [
+    "🚀 Starting GitHub Release Workflow (v1.0.5)...",
+    "📦 Checking out repository branch: main",
+    "🔧 Initializing Go build tools (v1.22.0)...",
+    "⚙️ Compiling cross-platform targets...",
+    "   └─ moodwave-windows-amd64.exe (8.0 MB)",
+    "   └─ moodwave-darwin-arm64 (8.0 MB)",
+    "   └─ moodwave-linux-amd64 (8.0 MB)",
+    "🧪 Running unit validation tests...",
+    "   └─ PASS: internal/config test suite",
+    "   └─ PASS: internal/visuals/fireplace test suite",
+    "📝 Generating release notes dynamically...",
+    "   └─ Found previous tag: v1.0.4",
+    "   └─ Appended commit delta since v1.0.4 (3 commits)",
+    "📤 Uploading binaries to GitHub Releases...",
+    "⚡ Updating web app changelog metrics database...",
+    "🎉 Release v1.0.5 is now LIVE on GitHub!"
+  ];
+
+  const runWorkflow = () => {
+    if (status === "running") return;
+    setStatus("running");
+    setLogs([]);
+    let i = 0;
+    const interval = setInterval(() => {
+      if (i < logQueue.length) {
+        setLogs(prev => [...prev, logQueue[i]]);
+        i++;
+      } else {
+        clearInterval(interval);
+        setStatus("done");
+      }
+    }, 450);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between text-xs font-mono">
+        <div className="flex items-center gap-2 text-[#555]">
+          <Cpu className="w-3.5 h-3.5 text-indigo-400" />
+          <span>Interactive CI Workflow Simulator (v1.0.5)</span>
+        </div>
+        <button
+          onClick={runWorkflow}
+          disabled={status === "running"}
+          className={`px-3 py-1 rounded font-mono text-[10px] cursor-pointer transition-all ${
+            status === "running"
+              ? "bg-white/10 text-white/50 cursor-not-allowed"
+              : "bg-indigo-600/30 border border-indigo-500/50 text-indigo-200 hover:bg-indigo-600/50"
+          }`}
+        >
+          {status === "idle" ? "Run Build" : status === "running" ? "Building..." : "Run Again"}
+        </button>
+      </div>
+
+      <div className="terminal-frame" style={{ background: "#050505" }}>
+        <div className="terminal-titlebar">
+          <div className="terminal-dot bg-rose-500/80" />
+          <div className="terminal-dot bg-amber-500/80" />
+          <div className="terminal-dot bg-emerald-500/80" />
+          <span className="font-mono text-xs text-[#444] ml-2">moodwave - release-ci-runner</span>
+        </div>
+        <div className="terminal-body font-mono py-4 px-5 text-left h-[180px] overflow-y-auto space-y-1.5 select-none" style={{ fontSize: "11px", lineHeight: "1.4" }}>
+          {logs.length === 0 && (
+            <div className="text-[#444] italic animate-pulse">Click "Run Build" above to trigger release automation pipeline...</div>
+          )}
+          {logs.map((log, idx) => (
+            <div 
+              key={idx} 
+              className={
+                log.includes("PASS") ? "text-emerald-400" :
+                log.includes("LIVE") || log.includes("🎉") ? "text-indigo-400 font-bold" :
+                log.includes("└─") ? "text-neutral-500" : "text-[#888]"
+              }
+            >
+              {log}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
