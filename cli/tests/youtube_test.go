@@ -10,6 +10,9 @@ import (
 )
 
 func TestYouTubeSearchDirect(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live YouTube network test in -short mode (used in CI)")
+	}
 	yt := sources.NewYouTubeAdapter()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -41,6 +44,9 @@ func TestYouTubeSearchDirect(t *testing.T) {
 }
 
 func TestYouTubeResolveTrack(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live YouTube network test in -short mode (used in CI)")
+	}
 	yt := sources.NewYouTubeAdapter()
 
 	// High timeout for dynamic downloading.

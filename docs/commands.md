@@ -251,10 +251,20 @@ moodwave theme monochrome
 
 | Theme | Description |
 |-------|-------------|
-| `monochrome` | Pure grayscale (default) |
+| `midnight` | Deep blue-black, high contrast (TUI default) |
+| `dracula` | Purple/pink on dark gray |
+| `nord` | Cool arctic blues |
+| `tokyo-night` | Muted indigo and cyan |
+| `gruvbox` | Warm retro earth tones |
+| `catppuccin` | Soft pastel on mocha |
+| `solarized` | Balanced low-contrast palette |
+| `monochrome` | Pure grayscale |
 | `dark` | Dark with subtle blue tints |
 | `ash` | Warm gray |
 | `ghost` | Near-invisible, minimal contrast |
+
+> In the interactive TUI, press `[T]` to open the theme selector with a live
+> color preview. Themes apply immediately across every screen.
 
 ---
 
@@ -278,11 +288,35 @@ moodwave visual quiet
 
 | Mode | Description |
 |------|-------------|
-| `wave` | Animated sine waveform (default) |
-| `spectrum` | Equalizer bars |
+| `spectrum` | Equalizer bars (TUI default) |
+| `fire` | Doom-style cellular-automaton fire |
+| `matrix` | Falling glyph rain |
+| `rain` | Vertical rainfall |
+| `plasma` | Smooth interference field |
+| `aurora` | Drifting polar light bands |
+| `snow` | Slow drifting snowfall |
+| `fireflies` | Scattered wandering glow points |
+| `lava` | Rising molten blobs |
+| `dna` | Rotating double helix |
+| `campfire` | Warmer, narrower fire |
+| `smoke` | Rising diffuse plumes |
+| `ripple` | Concentric water rings |
+| `lightning` | Intermittent forked strikes |
+| `spiral` | Rotating logarithmic spiral |
+| `petals` | Falling flower petals |
+| `galaxy` | Star field with drift |
+| `zen` | Slow calm ocean swell |
+| `heartbeat` | ECG-style pulse trace |
+| `pendulum` | Swinging pendulum arc |
+| `city` | Night skyline silhouette |
+| `ocean` | Rolling ocean waves |
+| `starfield` | Forward-motion star travel |
 | `pulse` | Ambient pulse rings |
 | `minimal` | Status text only, no animation |
 | `quiet` | No visual panel at all |
+
+> In the interactive TUI, press `[V]` to cycle visualizers live. All modes
+> size themselves to the current terminal width and height.
 
 ---
 
@@ -327,6 +361,73 @@ Checks:
 5. **Music sources** — live health check for each adapter
 6. **Cache** — entry count and limits
 7. **Session** — last scan age and mood
+
+In a TTY this runs as an interactive TUI. Press `[F]` to auto-fix a failing
+check — most commonly downloading a static `ffplay` build when no audio backend
+is available. In a non-TTY (piped/CI) context it falls back to plain text output.
+
+---
+
+## moodwave update
+
+Update the binary in place to the latest GitHub release.
+
+```sh
+moodwave update
+# alias: moodwave upgrade
+```
+
+**What it does:**
+1. Queries the GitHub releases API for the latest tag
+2. Compares it against the running binary's version — exits early if already current
+3. Picks the release asset matching your OS and architecture
+4. Downloads it and atomically swaps the running executable (with rollback if the write fails)
+
+The interactive TUI performs the same check automatically on every launch. When
+an update is available, a banner appears on the home screen and pressing `[U]`
+installs it without leaving the app. A failed background check is silent — it
+never interrupts you with an error.
+
+---
+
+## Interactive TUI
+
+Running `moodwave` with no arguments in a TTY launches the full interactive
+interface. Screens: Home, Search, Now Playing, Live Queue, Personal Playlist,
+Theme Select, and Doctor.
+
+### Keyboard shortcuts
+
+| Key | Context | Action |
+|---|---|---|
+| `↑` / `↓` | Anywhere | Navigate |
+| `Enter` | Anywhere | Select |
+| `Space` | Now Playing | Pause / resume |
+| `N` | Now Playing | Next track |
+| `L` | Now Playing | Cycle repeat: off → one → all |
+| `P` | Now Playing | Open Live Queue |
+| `O` | Now Playing / Queue | Open Personal Playlist |
+| `A` | Playlist views | Search and add a track |
+| `D` | Playlist views | Remove the selected track |
+| `C` | Personal Playlist | Clear the whole personal playlist |
+| `T` | Anywhere | Theme selector |
+| `V` | Anywhere | Cycle visualizer |
+| `U` | Home | Install available update |
+| `Q` / `Esc` | Anywhere | Back / quit |
+
+### Personal Playlist vs Live Queue
+
+Two separate lists, with a deliberate priority rule:
+
+- **Personal Playlist** — tracks you explicitly added. Strictly FIFO, and it
+  **always plays before** anything auto-generated. Lives in its own window
+  (`[O]`). Adding to it never disturbs the currently playing track, and clearing
+  it (`[C]`) never touches the Live Queue or playback.
+- **Live Queue** — search results, autonomous mood-based play, and
+  endless-listening refills. Only takes over once the Personal Playlist is empty.
+
+When the Live Queue is exhausted and the Personal Playlist is empty, Moodwave
+searches for similar music and refills automatically (endless listening).
 
 ---
 

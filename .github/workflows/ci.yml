@@ -37,8 +37,10 @@ jobs:
 
       - name: Test
         working-directory: cli
-        run: go test ./... -timeout 60s
-        continue-on-error: true   # tests may need audio deps
+        # -short skips tests that hit live network endpoints (YouTube,
+        # Jamendo) — those are exercised manually/locally instead, since
+        # third-party API flakiness in CI should never block merges.
+        run: go test ./... -short -timeout 60s
 
   # ── Cross-compile smoke test ─────────────────────────────────────────────────
   cross-compile:

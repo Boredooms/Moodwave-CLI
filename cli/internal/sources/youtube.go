@@ -5,11 +5,13 @@
 package sources
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -29,11 +31,28 @@ type YouTubeAdapter struct {
 	client *http.Client
 }
 
+// sharedYouTubeTransport is reused across adapter instances so TCP/TLS
+// connections to YouTube can be pooled instead of renegotiated on every
+// search. Explicit sub-timeouts make network stalls fail fast instead of
+// silently eating the whole request budget on a slow hop.
+var sharedYouTubeTransport = &http.Transport{
+	DialContext: (&net.Dialer{
+		Timeout:   5 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}).DialContext,
+	TLSHandshakeTimeout:   5 * time.Second,
+	ResponseHeaderTimeout: 8 * time.Second,
+	ExpectContinueTimeout: 1 * time.Second,
+	IdleConnTimeout:       60 * time.Second,
+	MaxIdleConnsPerHost:   4,
+}
+
 // NewYouTubeAdapter creates a YouTube adapter.
 func NewYouTubeAdapter() *YouTubeAdapter {
 	return &YouTubeAdapter{
 		client: &http.Client{
-			Timeout: 15 * time.Second,
+			Timeout:   15 * time.Second,
+			Transport: sharedYouTubeTransport,
 		},
 	}
 }
@@ -86,29 +105,17 @@ func (a *YouTubeAdapter) SearchTracks(ctx context.Context, q SearchQuery) ([]Tra
 		return nil, fmt.Errorf("youtube: server returned status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	// Stream the response and stop as soon as we've captured the
+	// ytInitialData JSON blob — the page has megabytes of trailing
+	// scripts/assets we never need, and reading all of it needlessly
+	// exposes every search to the full page-load latency.
+	jsonData, err := extractYtInitialData(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("youtube: reading response: %w", err)
 	}
-
-	html := string(body)
-
-	startToken := "ytInitialData = "
-	idx := strings.Index(html, startToken)
-	if idx < 0 {
+	if jsonData == "" {
 		return nil, nil // not found
 	}
-
-	jsonData := html[idx+len(startToken):]
-	endIdx := strings.Index(jsonData, ";</script>")
-	if endIdx < 0 {
-		endIdx = strings.Index(jsonData, ";")
-	}
-	if endIdx < 0 {
-		return nil, nil
-	}
-
-	jsonData = jsonData[:endIdx]
 
 	var data map[string]interface{}
 	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
@@ -143,6 +150,13 @@ func (a *YouTubeAdapter) SearchTracks(ctx context.Context, q SearchQuery) ([]Tra
 	limit := coalesce(q.Limit, 10)
 	tracks := make([]Track, 0, limit)
 	count := 0
+	// YouTube's results page occasionally repeats the same video across
+	// multiple shelves/renderers (e.g. a "people also watched" style
+	// insert further down the list). Without deduping by videoID, those
+	// duplicates flow straight into the queue/playlist UI as visually
+	// identical repeated rows with the same track number. Track what
+	// we've already emitted so each video appears at most once per search.
+	seen := make(map[string]bool, limit)
 
 	for _, item := range items {
 		if count >= limit {
@@ -163,6 +177,10 @@ func (a *YouTubeAdapter) SearchTracks(ctx context.Context, q SearchQuery) ([]Tra
 		if !ok || videoID == "" {
 			continue
 		}
+		if seen[videoID] {
+			continue
+		}
+		seen[videoID] = true
 
 		// Get title.
 		titleObj, _ := navigateJSON(video, "title", "runs")
@@ -283,42 +301,97 @@ func (a *YouTubeAdapter) ResolveTrack(ctx context.Context, id string) (*Track, e
 
 	// If we have a valid yt-dlp executable, try it first!
 	if _, statErr := os.Stat(ytDlpPath); statErr == nil {
-		// Run yt-dlp to get direct audio URL.
-		cmd := exec.CommandContext(ctx, ytDlpPath, "-g", "-f", "ba", videoURL)
+		// Run yt-dlp to get direct audio URL + metadata.
+		// Use --print to get URL, duration, title, and artist in one call.
+		args := []string{
+			"--print", "urls",
+			"--print", "duration",
+			"--print", "title",
+			"--print", "channel",
+			"-f", "ba[ext=m4a]/ba",
+			"--no-warnings",
+			"--socket-timeout", "10",
+			"--retries", "2",
+		}
+
+		// Check for available JS runtimes and add them
+		jsRuntimes := detectJSRuntimes()
+		if jsRuntimes != "" {
+			args = append(args, "--js-runtimes", jsRuntimes)
+		}
+
+		args = append(args, videoURL)
+
+		// Use a tight timeout for yt-dlp — fall through to Invidious quickly if it fails
+		ytCtx, ytCancel := context.WithTimeout(ctx, 15*time.Second)
+		defer ytCancel()
+
+		cmd := exec.CommandContext(ytCtx, ytDlpPath, args...)
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
 
 		_ = cmd.Run()
-		directURL := strings.TrimSpace(stdout.String())
-		if strings.Contains(directURL, "googlevideo.com") {
-			return &Track{
-				ID:        id,
-				Source:    a.Name(),
-				Title:     "YouTube Video",
-				StreamURL: directURL,
-				License:   "CC",
-			}, nil
+		lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+
+		// Parse output: line 0 = URL, line 1 = duration, line 2 = title, line 3 = channel
+		if len(lines) >= 1 {
+			directURL := strings.TrimSpace(lines[0])
+			if strings.Contains(directURL, "googlevideo.com") {
+				dur := 0
+				title := "YouTube Video"
+				artist := ""
+				if len(lines) >= 2 {
+					fmt.Sscanf(strings.TrimSpace(lines[1]), "%d", &dur)
+				}
+				if len(lines) >= 3 && strings.TrimSpace(lines[2]) != "" {
+					title = strings.TrimSpace(lines[2])
+				}
+				if len(lines) >= 4 && strings.TrimSpace(lines[3]) != "" {
+					artist = strings.TrimSpace(lines[3])
+				}
+				return &Track{
+					ID:        id,
+					Source:    a.Name(),
+					Title:     title,
+					Artist:    artist,
+					Duration:  dur,
+					StreamURL: directURL,
+					License:   "CC",
+				}, nil
+			}
 		}
-		fmt.Printf("  Local extractor did not return a stream URL. Trying public API failover...\n")
+		// If extraction failed, fall through to Invidious silently
 	}
 
 	// Fallback to Invidious public instances if local extraction failed or wasn't available!
-	fallbackReq, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.invidious.io/instances.json", nil)
+	// Give this its own short-lived sub-timeout so a slow/unreachable
+	// instances.json fetch can't silently consume whatever's left of the
+	// caller's overall deadline and surface as a bare "context deadline
+	// exceeded" with no useful signal.
+	invCtx, invCancel := context.WithTimeout(ctx, 6*time.Second)
+	defer invCancel()
+
+	fallbackReq, err := http.NewRequestWithContext(invCtx, http.MethodGet, "https://api.invidious.io/instances.json", nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("youtube: failed to resolve audio stream URL for video %s", id)
 	}
 	fallbackReq.Header.Set("User-Agent", youtubeUserAgent)
 
 	resp, err := a.client.Do(fallbackReq)
 	if err != nil {
-		return nil, err
+		// Invidious directory unreachable — no point trying per-instance
+		// lookups with no instance list. Fail clean instead of leaking the
+		// raw network error.
+		return nil, fmt.Errorf("youtube: failed to resolve audio stream URL for video %s", id)
 	}
 	defer resp.Body.Close()
 
 	var raw [][]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		return nil, err
+		// Malformed/unexpected instances.json — fail clean instead of
+		// leaking the raw decode error, matching the request-error path above.
+		return nil, fmt.Errorf("youtube: failed to resolve audio stream URL for video %s", id)
 	}
 
 	// Try up to 12 instances.
@@ -383,6 +456,60 @@ func (a *YouTubeAdapter) ResolveTrack(ctx context.Context, id string) (*Track, e
 	return nil, fmt.Errorf("youtube: failed to resolve audio stream URL for video %s", id)
 }
 
+// extractYtInitialData scans the search-results page incrementally and
+// returns just the ytInitialData JSON blob, without buffering the rest of
+// the (often multi-megabyte) HTML document. It stops reading from the
+// network the moment the closing token is found, which keeps a single
+// search fast even when YouTube is slow to finish sending the full page.
+func extractYtInitialData(body io.Reader) (string, error) {
+	const startToken = "ytInitialData = "
+	const maxScan = 4 << 20 // 4MB safety cap in case markers are ever missing
+
+	r := bufio.NewReaderSize(body, 64*1024)
+	var buf bytes.Buffer
+	found := false
+	startIdx := -1
+
+	for buf.Len() < maxScan {
+		chunk := make([]byte, 32*1024)
+		n, err := r.Read(chunk)
+		if n > 0 {
+			buf.Write(chunk[:n])
+			if !found {
+				if idx := strings.Index(buf.String(), startToken); idx >= 0 {
+					found = true
+					startIdx = idx + len(startToken)
+				}
+			}
+			if found {
+				tail := buf.String()[startIdx:]
+				if endIdx := strings.Index(tail, ";</script>"); endIdx >= 0 {
+					return tail[:endIdx], nil
+				}
+				if endIdx := strings.Index(tail, ";\n"); endIdx >= 0 {
+					return tail[:endIdx], nil
+				}
+			}
+		}
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return "", err
+		}
+	}
+
+	if found {
+		// Reached EOF/cap without a clean terminator — fall back to a
+		// best-effort trim at the last semicolon.
+		tail := buf.String()[startIdx:]
+		if endIdx := strings.LastIndex(tail, ";"); endIdx >= 0 {
+			return tail[:endIdx], nil
+		}
+	}
+	return "", nil
+}
+
 // navigateJSON traverses nested map[string]interface{} maps.
 func navigateJSON(obj interface{}, keys ...string) (interface{}, bool) {
 	curr := obj
@@ -397,4 +524,27 @@ func navigateJSON(obj interface{}, keys ...string) (interface{}, bool) {
 		}
 	}
 	return curr, true
+}
+
+// detectJSRuntimes checks for available JavaScript runtimes that yt-dlp can use.
+// Returns a comma-separated list suitable for --js-runtimes flag, or empty string.
+func detectJSRuntimes() string {
+	var runtimes []string
+
+	// Check for deno (preferred by yt-dlp)
+	if _, err := exec.LookPath("deno"); err == nil {
+		runtimes = append(runtimes, "deno")
+	}
+
+	// Check for Node.js (yt-dlp uses "node" as the runtime name)
+	if _, err := exec.LookPath("node"); err == nil {
+		runtimes = append(runtimes, "node")
+	}
+
+	// Check for bun
+	if _, err := exec.LookPath("bun"); err == nil {
+		runtimes = append(runtimes, "bun")
+	}
+
+	return strings.Join(runtimes, ",")
 }

@@ -25,6 +25,8 @@ import (
 	"github.com/moodwave/moodwave/internal/recommender"
 	"github.com/moodwave/moodwave/internal/scanner"
 	"github.com/moodwave/moodwave/internal/sources"
+	"github.com/moodwave/moodwave/internal/tui"
+	"github.com/moodwave/moodwave/internal/updater"
 	"github.com/moodwave/moodwave/internal/visuals"
 )
 
@@ -403,7 +405,8 @@ func (a *App) cmdPlay(args []string) error {
 				streamURL = resolved.StreamURL
 				current.Track.StreamURL = resolved.StreamURL
 			} else {
-				fmt.Printf("\n  Warning: YouTube stream resolution failed: %v\n", err)
+				// Resolution failed — skip this track (YouTube watch URLs can't be played directly)
+				streamURL = ""
 			}
 		}
 
@@ -415,15 +418,37 @@ func (a *App) cmdPlay(args []string) error {
 			title = current.Station.Name
 		}
 
+		// Skip if no stream URL resolved
+		if streamURL == "" {
+			session.QueueIndex++
+			_ = a.saveSession(session)
+			continue
+		}
+
 		// Start audio playback.
 		controller, err := playback.NewController(a.cfg.Playback.Backend)
 		if err != nil {
-			fmt.Printf("  Note: No audio backend found (%v).\n", err)
-			fmt.Printf("  Install mpv or ffmpeg to enable audio playback.\n")
-			fmt.Printf("  Stream URL: %s\n", streamURL)
-			session.PlaybackState = "info-only"
-			_ = a.saveSession(session)
-			return nil
+			// Auto-install ffplay if no backend found
+			fmt.Printf("  No audio backend — installing ffplay automatically...\n")
+			installCtx, installCancel := context.WithTimeout(a.ctx, 5*time.Minute)
+			_, installErr := playback.InstallFFplay(installCtx, func(msg string) {
+				fmt.Printf("  %s\n", msg)
+			})
+			installCancel()
+			if installErr != nil {
+				fmt.Printf("  Auto-install failed: %v\n", installErr)
+				fmt.Printf("  Install mpv or ffmpeg manually, or run 'moodwave doctor' to fix.\n")
+				fmt.Printf("  Stream URL: %s\n", streamURL)
+				session.PlaybackState = "info-only"
+				_ = a.saveSession(session)
+				return nil
+			}
+			// Retry with newly installed ffplay
+			controller, err = playback.NewController(a.cfg.Playback.Backend)
+			if err != nil {
+				fmt.Printf("  Still no audio backend after install: %v\n", err)
+				return nil
+			}
 		}
 
 		if err := controller.Play(a.ctx, streamURL, title, artist); err != nil {
@@ -609,7 +634,20 @@ func (a *App) cmdSearch(args []string) error {
 
 	controller, err := playback.NewController(a.cfg.Playback.Backend)
 	if err != nil {
-		return fmt.Errorf("no audio backend found: %w", err)
+		// Auto-install ffplay
+		fmt.Printf("  No audio backend — installing ffplay...\n")
+		installCtx, installCancel := context.WithTimeout(a.ctx, 5*time.Minute)
+		_, installErr := playback.InstallFFplay(installCtx, func(msg string) {
+			fmt.Printf("  %s\n", msg)
+		})
+		installCancel()
+		if installErr != nil {
+			return fmt.Errorf("no audio backend and auto-install failed: %w\nRun 'moodwave doctor' to fix", installErr)
+		}
+		controller, err = playback.NewController(a.cfg.Playback.Backend)
+		if err != nil {
+			return fmt.Errorf("no audio backend found after install: %w", err)
+		}
 	}
 	defer controller.Stop()
 
@@ -1321,106 +1359,228 @@ func (a *App) cmdSource(args []string) error {
 // ──────────────────────────────────────────────────────────────────────────────
 
 func (a *App) cmdDoctor() error {
-	fmt.Printf("\nMoodwave Doctor\n%s\n\n", strings.Repeat("═", 50))
+	runChecks := func() []tui.DoctorCheck {
+		var checks []tui.DoctorCheck
 
-	pass := "✓"
-	fail := "✗"
-	warn := "⚠"
+		// ── System ──
+		checks = append(checks, tui.DoctorCheck{
+			Category: "System",
+			Label:    "Platform",
+			Status:   tui.CheckPass,
+			Detail:   fmt.Sprintf("%s/%s", a.caps.OS, a.caps.Arch),
+		})
 
-	// System checks.
-	fmt.Println("System:")
-	fmt.Printf("  %s Go version (compiled binary — no runtime needed)\n", pass)
-	fmt.Printf("  %s OS: %s / %s\n", pass, a.caps.OS, a.caps.Arch)
-
-	// Terminal checks.
-	fmt.Println("\nTerminal:")
-	tty := pass
-	if !a.caps.IsTTY {
-		tty = warn
-	}
-	fmt.Printf("  %s TTY:       %v (%dx%d)\n", tty, a.caps.IsTTY, a.caps.Width, a.caps.Height)
-
-	color := pass
-	if !a.caps.HasColor {
-		color = warn
-	}
-	fmt.Printf("  %s Color:     %v\n", color, a.caps.HasColor)
-	fmt.Printf("  %s Unicode:   %v\n", pass, a.caps.HasUnicode)
-	fmt.Printf("  %s Animation: %v\n", pass, a.caps.HasAnimation)
-
-	// Config checks.
-	fmt.Println("\nConfiguration:")
-	if _, err := os.Stat(a.cfg.Paths.ConfigFile); err == nil {
-		fmt.Printf("  %s Config file: %s\n", pass, a.cfg.Paths.ConfigFile)
-	} else {
-		fmt.Printf("  %s Config file: missing (run 'moodwave init')\n", warn)
-	}
-	if _, err := os.Stat(a.cfg.Paths.CacheDir); err == nil {
-		fmt.Printf("  %s Cache dir:   %s\n", pass, a.cfg.Paths.CacheDir)
-	} else {
-		fmt.Printf("  %s Cache dir:   missing (will be created on next scan)\n", warn)
-	}
-
-	// Audio backend checks.
-	fmt.Println("\nAudio backends:")
-	backends := []string{"mpv", "ffplay", "afplay", "vlc"}
-	foundBackend := false
-	for _, b := range backends {
-		if _, err := findExecutable(b); err == nil {
-			fmt.Printf("  %s %s (found)\n", pass, b)
-			foundBackend = true
+		// ── Terminal ──
+		if a.caps.IsTTY {
+			checks = append(checks, tui.DoctorCheck{
+				Category: "Terminal",
+				Label:    "TTY",
+				Status:   tui.CheckPass,
+				Detail:   fmt.Sprintf("%dx%d", a.caps.Width, a.caps.Height),
+			})
 		} else {
-			fmt.Printf("  %s %s (not found)\n", fail, b)
+			checks = append(checks, tui.DoctorCheck{
+				Category: "Terminal",
+				Label:    "TTY",
+				Status:   tui.CheckWarn,
+				Detail:   "Not a terminal — some features limited",
+			})
 		}
-	}
-	if !foundBackend {
-		fmt.Printf("\n  %s No audio backend found. Install mpv or ffmpeg for playback.\n", warn)
-		fmt.Printf("    macOS:   brew install mpv\n")
-		fmt.Printf("    Ubuntu:  apt install mpv\n")
-		fmt.Printf("    Windows: winget install mpv\n")
-	}
+		if a.caps.HasColor {
+			checks = append(checks, tui.DoctorCheck{
+				Category: "Terminal",
+				Label:    "Color support",
+				Status:   tui.CheckPass,
+				Detail:   "ANSI colors available",
+			})
+		} else {
+			checks = append(checks, tui.DoctorCheck{
+				Category: "Terminal",
+				Label:    "Color support",
+				Status:   tui.CheckWarn,
+				Detail:   "No color support detected",
+			})
+		}
 
-	// Source connectivity checks.
-	fmt.Println("\nMusic sources:")
-	registry := a.buildSourceRegistry()
-	ctx, cancel := context.WithTimeout(a.ctx, 30*time.Second)
-	defer cancel()
+		// ── Configuration ──
+		if _, err := os.Stat(a.cfg.Paths.ConfigFile); err == nil {
+			checks = append(checks, tui.DoctorCheck{
+				Category: "Configuration",
+				Label:    "Config file",
+				Status:   tui.CheckPass,
+				Detail:   a.cfg.Paths.ConfigFile,
+			})
+		} else {
+			checks = append(checks, tui.DoctorCheck{
+				Category: "Configuration",
+				Label:    "Config file",
+				Status:   tui.CheckWarn,
+				Detail:   "Missing — run 'moodwave init'",
+			})
+		}
 
-	for _, adapter := range registry.All() {
-		err := adapter.HealthCheck(ctx)
+		// ── Audio Backends ──
+		ffStatus := playback.CheckFFplay()
+		if ffStatus.Available {
+			checks = append(checks, tui.DoctorCheck{
+				Category: "Audio",
+				Label:    "ffplay",
+				Status:   tui.CheckPass,
+				Detail:   fmt.Sprintf("Found (%s: %s)", ffStatus.Source, ffStatus.Path),
+			})
+		} else {
+			checks = append(checks, tui.DoctorCheck{
+				Category: "Audio",
+				Label:    "ffplay",
+				Status:   tui.CheckFail,
+				Detail:   "Not installed — required for audio playback",
+				CanFix:   true,
+				FixLabel: "Auto-download ffplay",
+			})
+		}
+
+		// Check mpv (optional)
+		if _, err := findExecutable("mpv"); err == nil {
+			checks = append(checks, tui.DoctorCheck{
+				Category: "Audio",
+				Label:    "mpv",
+				Status:   tui.CheckPass,
+				Detail:   "Found in PATH",
+			})
+		}
+
+		// Check yt-dlp
+		if _, err := findExecutable("yt-dlp"); err == nil {
+			checks = append(checks, tui.DoctorCheck{
+				Category: "Audio",
+				Label:    "yt-dlp",
+				Status:   tui.CheckPass,
+				Detail:   "YouTube stream resolver available",
+			})
+		} else {
+			checks = append(checks, tui.DoctorCheck{
+				Category: "Audio",
+				Label:    "yt-dlp",
+				Status:   tui.CheckFail,
+				Detail:   "Not found — required for YouTube playback",
+				CanFix:   true,
+				FixLabel: "Auto-download yt-dlp",
+			})
+		}
+
+		// ── Music Sources ──
+		registry := a.buildSourceRegistry()
+		ctx, cancel := context.WithTimeout(a.ctx, 20*time.Second)
+		defer cancel()
+
+		for _, adapter := range registry.All() {
+			err := adapter.HealthCheck(ctx)
+			if err == nil {
+				checks = append(checks, tui.DoctorCheck{
+					Category: "Sources",
+					Label:    adapter.Name(),
+					Status:   tui.CheckPass,
+					Detail:   "Connected",
+				})
+			} else {
+				checks = append(checks, tui.DoctorCheck{
+					Category: "Sources",
+					Label:    adapter.Name(),
+					Status:   tui.CheckFail,
+					Detail:   err.Error(),
+				})
+			}
+		}
+
+		// ── Cache ──
+		c, err := cache.New(
+			a.cfg.Paths.CacheDir,
+			a.cfg.Cache.MaxEntries,
+			time.Duration(a.cfg.Cache.TTLSecs)*time.Second,
+		)
 		if err == nil {
-			fmt.Printf("  %s %s — OK\n", pass, adapter.Name())
+			count, max := c.Stats()
+			checks = append(checks, tui.DoctorCheck{
+				Category: "Storage",
+				Label:    "Cache",
+				Status:   tui.CheckPass,
+				Detail:   fmt.Sprintf("%d/%d entries", count, max),
+			})
+		}
+
+		// ── Session ──
+		session, _ := a.loadSession()
+		if session.MoodProfile != nil {
+			age := time.Since(session.ScannedAt).Truncate(time.Minute)
+			checks = append(checks, tui.DoctorCheck{
+				Category: "Storage",
+				Label:    "Session",
+				Status:   tui.CheckPass,
+				Detail:   fmt.Sprintf("Last scan %v ago (mood: %s)", age, session.MoodProfile.Label),
+			})
 		} else {
-			fmt.Printf("  %s %s — %v\n", fail, adapter.Name(), err)
+			checks = append(checks, tui.DoctorCheck{
+				Category: "Storage",
+				Label:    "Session",
+				Status:   tui.CheckWarn,
+				Detail:   "No scan yet — run 'moodwave scan'",
+			})
+		}
+
+		return checks
+	}
+
+	fixCheck := func(idx int) error {
+		checks := runChecks()
+		if idx >= len(checks) {
+			return fmt.Errorf("invalid check index")
+		}
+
+		check := checks[idx]
+		switch check.Label {
+		case "ffplay":
+			ctx, cancel := context.WithTimeout(a.ctx, 5*time.Minute)
+			defer cancel()
+			_, err := playback.InstallFFplay(ctx, nil)
+			return err
+		case "yt-dlp":
+			return installYtDlp(a.ctx)
+		default:
+			return fmt.Errorf("no auto-fix available for: %s", check.Label)
 		}
 	}
 
-	// Cache check.
-	fmt.Println("\nCache:")
-	c, err := cache.New(
-		a.cfg.Paths.CacheDir,
-		a.cfg.Cache.MaxEntries,
-		time.Duration(a.cfg.Cache.TTLSecs)*time.Second,
-	)
-	if err != nil {
-		fmt.Printf("  %s Cache init failed: %v\n", fail, err)
-	} else {
-		count, max := c.Stats()
-		fmt.Printf("  %s Cache: %d/%d entries\n", pass, count, max)
+	// If not a TTY, fall back to plain text output
+	if !a.caps.IsTTY {
+		checks := runChecks()
+		fmt.Printf("\nMoodwave Doctor\n%s\n\n", strings.Repeat("═", 50))
+		currentCat := ""
+		for _, c := range checks {
+			if c.Category != currentCat {
+				if currentCat != "" {
+					fmt.Println()
+				}
+				currentCat = c.Category
+				fmt.Printf("%s:\n", c.Category)
+			}
+			icon := "✓"
+			switch c.Status {
+			case tui.CheckFail:
+				icon = "✗"
+			case tui.CheckWarn:
+				icon = "⚠"
+			}
+			detail := ""
+			if c.Detail != "" {
+				detail = " — " + c.Detail
+			}
+			fmt.Printf("  %s %s%s\n", icon, c.Label, detail)
+		}
+		fmt.Printf("\n%s\nDiagnostics complete.\n", strings.Repeat("═", 50))
+		return nil
 	}
 
-	// Session check.
-	fmt.Println("\nSession:")
-	session, _ := a.loadSession()
-	if session.MoodProfile != nil {
-		age := time.Since(session.ScannedAt).Truncate(time.Minute)
-		fmt.Printf("  %s Last scan: %v ago (mood: %s)\n", pass, age, session.MoodProfile.Label)
-	} else {
-		fmt.Printf("  %s No session found (run 'moodwave scan')\n", warn)
-	}
-
-	fmt.Printf("\n%s\nDiagnostics complete.\n", strings.Repeat("═", 50))
-	return nil
+	return tui.RunDoctor(runChecks, fixCheck)
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -1464,10 +1624,9 @@ func (a *App) buildSourceRegistry() *sources.Registry {
 	return registry
 }
 
-// findExecutable searches PATH for a binary (thin wrapper for clarity).
+// findExecutable searches PATH and moodwave cache for a binary.
 func findExecutable(name string) (string, error) {
-	// Use os/exec lookpath via inline to avoid import cycle.
-	// Simplified implementation.
+	// Check system PATH first
 	paths := strings.Split(os.Getenv("PATH"), string(os.PathListSeparator))
 	for _, dir := range paths {
 		full := filepath.Join(dir, name)
@@ -1480,7 +1639,74 @@ func findExecutable(name string) (string, error) {
 			return fullExe, nil
 		}
 	}
+	// Also check moodwave cache directory (auto-downloaded binaries)
+	if cacheDir, err := os.UserCacheDir(); err == nil {
+		mwCache := filepath.Join(cacheDir, "moodwave")
+		full := filepath.Join(mwCache, name)
+		if _, err := os.Stat(full); err == nil {
+			return full, nil
+		}
+		fullExe := full + ".exe"
+		if _, err := os.Stat(fullExe); err == nil {
+			return fullExe, nil
+		}
+	}
 	return "", fmt.Errorf("%s not found", name)
+}
+
+// installYtDlp downloads yt-dlp to the moodwave cache directory.
+func installYtDlp(ctx context.Context) error {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return fmt.Errorf("cannot determine cache dir: %w", err)
+	}
+	mwCache := filepath.Join(cacheDir, "moodwave")
+	_ = os.MkdirAll(mwCache, 0755)
+
+	execName := "yt-dlp"
+	var dlURL string
+	switch runtime.GOOS {
+	case "windows":
+		execName = "yt-dlp.exe"
+		dlURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+	case "darwin":
+		dlURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+	default:
+		dlURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux"
+	}
+
+	targetPath := filepath.Join(mwCache, execName)
+	client := &http.Client{Timeout: 2 * time.Minute}
+	req, err := http.NewRequestWithContext(ctx, "GET", dlURL, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("download failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("download returned status %d", resp.StatusCode)
+	}
+
+	tmpPath := targetPath + ".tmp"
+	out, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(out, resp.Body)
+	out.Close()
+	if err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+
+	_ = os.Remove(targetPath)
+	return os.Rename(tmpPath, targetPath)
 }
 
 // min3 returns the minimum of two ints.
@@ -1495,342 +1721,96 @@ func min3(a, b int) int {
 var _ = platform.Detect
 
 func (a *App) cmdWelcome() error {
-	var oldState *term.State
-	if a.caps.IsTTY {
-		state, err := term.MakeRaw(int(os.Stdin.Fd()))
-		if err == nil {
-			oldState = state
+	// Load session to get current mood if available.
+	session, _ := a.loadSession()
+
+	var moodLabel, moodEmoji string
+	var confidence float64
+	if session != nil && session.MoodProfile != nil {
+		moodLabel = string(session.MoodProfile.Label)
+		moodEmoji = session.MoodProfile.Label.Emoji()
+		confidence = session.MoodProfile.Confidence
+	}
+
+	var postAction string
+
+	// Create scan function that runs the full scan pipeline
+	scanFn := func() tui.ScanResult {
+		root, err := filepath.Abs(a.projectRoot)
+		if err != nil {
+			return tui.ScanResult{Err: err}
+		}
+
+		opts := scanner.ScanOptions{
+			MaxDepth:   a.cfg.Scanner.MaxDepth,
+			MaxFiles:   a.cfg.Scanner.MaxFiles,
+			GitEnabled: a.cfg.Scanner.GitEnabled,
+			IgnoreDirs: a.cfg.Scanner.IgnoreDirs,
+		}
+		s := scanner.New(opts)
+		signals, err := s.Scan(root)
+		if err != nil {
+			return tui.ScanResult{Err: fmt.Errorf("scan failed: %w", err)}
+		}
+
+		engine := mood.NewEngine(a.cfg.Mood.Sensitivity)
+		profile := engine.Infer(signals)
+
+		// Save to session
+		newSession := &Session{
+			MoodProfile: profile,
+			ScannedAt:   time.Now(),
+		}
+		_ = a.saveSession(newSession)
+
+		return tui.ScanResult{
+			MoodLabel:  string(profile.Label),
+			MoodEmoji:  profile.Label.Emoji(),
+			Confidence: profile.Confidence,
 		}
 	}
 
-	keyChan := make(chan rune, 100)
-	keyDone := make(chan struct{})
-	
-	closeKeyDone := func() {
-		select {
-		case <-keyDone:
-			// already closed
-		default:
-			close(keyDone)
+	err := tui.Run(moodLabel, moodEmoji, confidence, func(action, args string) {
+		switch action {
+		case "doctor":
+			postAction = "doctor"
 		}
-	}
-	defer closeKeyDone()
-
-	restoreTTY := func() {
-		if oldState != nil {
-			term.Restore(int(os.Stdin.Fd()), oldState)
-			oldState = nil
-		}
-	}
-	defer restoreTTY()
-
-	if a.caps.IsTTY {
-		go func() {
-			buf := make([]byte, 1)
-			for {
-				select {
-				case <-keyDone:
-					return
-				default:
-					_, readErr := os.Stdin.Read(buf)
-					if readErr != nil {
-						return
-					}
-					select {
-					case <-keyDone:
-						return
-					default:
-						keyChan <- rune(buf[0])
-					}
-				}
-			}
-		}()
+	}, scanFn)
+	if err != nil {
+		return err
 	}
 
-	menuItems := []string{
-		"🌊 Autonomous Play",
-		"🔍 YouTube Search",
-		"🎨 Customize Theme",
-		"🔄 Check for Updates",
-		"🚪 Exit",
-	}
-	selectedIndex := 0
-
-	rendCfg := visuals.RendererConfig{
-		VisualMode:  a.cfg.Visual.Mode,
-		Theme:       a.cfg.Visual.Theme,
-		FPS:         a.cfg.Visual.FPS,
-		NoAnimation: a.cfg.Visual.NoAnimation,
-		NoColor:     a.cfg.Visual.NoColor,
-		NoUnicode:   a.cfg.Visual.NoUnicode,
-		Caps:        a.caps,
-	}
-	renderer := visuals.New(rendCfg)
-	renderer.Start()
-	defer renderer.Stop()
-
-	inThemeMenu := false
-	themeItems := []string{
-		"monochrome",
-		"dark",
-		"ash",
-		"ghost",
-		"ocean",
-		"neon",
-		"sunset",
-		"matrix",
-		"lavender",
-		"⬅ Back to Main Menu",
-	}
-	selectedThemeIndex := 0
-
-	ticker := time.NewTicker(150 * time.Millisecond)
-	defer ticker.Stop()
-
-	var statusMsgClearTime time.Time
-
-	updateWelcomeState := func() {
-		var items []string
-		var idx int
-		title := "MAIN MENU"
-		if inThemeMenu {
-			items = themeItems
-			idx = selectedThemeIndex
-			title = "SELECT THEME"
-		} else {
-			items = menuItems
-			idx = selectedIndex
-		}
-
-		renderer.SetState(visuals.RenderState{
-			Scene:      visuals.SceneWelcome,
-			Mood:       &mood.Profile{Label: mood.MoodCalm},
-			ScanMsg:    title,
-			Error:      strings.Join(items, ";"),
-			Progress:   float64(idx),
-			RepeatMode: config.Version,
-		})
+	// Handle post-TUI actions that need raw terminal
+	switch postAction {
+	case "doctor":
+		return a.cmdDoctor()
 	}
 
-	updateWelcomeState()
-
-	for {
-		select {
-		case <-a.ctx.Done():
-			return nil
-		case key := <-keyChan:
-			if key == 'q' || key == 'Q' || key == 27 { // Escape or q
-				select {
-				case next1 := <-keyChan:
-					if next1 == '[' {
-						select {
-						case next2 := <-keyChan:
-							if next2 == 'A' { // UP
-								if inThemeMenu {
-									selectedThemeIndex = (selectedThemeIndex - 1 + len(themeItems)) % len(themeItems)
-								} else {
-									selectedIndex = (selectedIndex - 1 + len(menuItems)) % len(menuItems)
-								}
-								updateWelcomeState()
-								continue
-							} else if next2 == 'B' { // DOWN
-								if inThemeMenu {
-									selectedThemeIndex = (selectedThemeIndex + 1) % len(themeItems)
-								} else {
-									selectedIndex = (selectedIndex + 1) % len(menuItems)
-								}
-								updateWelcomeState()
-								continue
-							}
-						default:
-						}
-					}
-				default:
-					if inThemeMenu {
-						inThemeMenu = false
-						updateWelcomeState()
-					} else {
-						return nil
-					}
-				}
-			} else if key == 13 || key == ' ' { // Enter or Space
-				if inThemeMenu {
-					chosen := themeItems[selectedThemeIndex]
-					if chosen == "⬅ Back to Main Menu" {
-						inThemeMenu = false
-					} else {
-						a.cfg.Visual.Theme = config.ThemeID(chosen)
-						_ = config.WriteDefaults(a.cfg)
-						rendCfg.Theme = config.ThemeID(chosen)
-						renderer.SetVisualTheme(chosen)
-					}
-					updateWelcomeState()
-				} else {
-					chosen := menuItems[selectedIndex]
-					switch chosen {
-					case "🌊 Autonomous Play":
-						renderer.Stop()
-						closeKeyDone()
-						restoreTTY()
-						fmt.Println("\n🌊 Codebase analysis in progress...")
-						if err := a.cmdScan(nil); err != nil {
-							return err
-						}
-						return a.cmdPlay(nil)
-					case "🔍 YouTube Search":
-						renderer.Stop()
-						closeKeyDone()
-						restoreTTY()
-						fmt.Print("\nEnter YouTube search query: ")
-						reader := bufio.NewReader(os.Stdin)
-						line, _ := reader.ReadString('\n')
-						line = strings.TrimSpace(line)
-						if line == "" {
-							return nil
-						}
-						return a.cmdSearch([]string{line})
-					case "🎨 Customize Theme":
-						inThemeMenu = true
-						selectedThemeIndex = 0
-						updateWelcomeState()
-					case "🔄 Check for Updates":
-						renderer.Stop()
-						closeKeyDone()
-						restoreTTY()
-						return a.cmdSelfUpdate()
-					case "🚪 Exit":
-						renderer.Stop()
-						closeKeyDone()
-						restoreTTY()
-						return nil
-					}
-				}
-			} else if key == 'w' || key == 'W' {
-				if inThemeMenu {
-					selectedThemeIndex = (selectedThemeIndex - 1 + len(themeItems)) % len(themeItems)
-				} else {
-					selectedIndex = (selectedIndex - 1 + len(menuItems)) % len(menuItems)
-				}
-				updateWelcomeState()
-			} else if key == 's' || key == 'S' {
-				if inThemeMenu {
-					selectedThemeIndex = (selectedThemeIndex + 1) % len(themeItems)
-				} else {
-					selectedIndex = (selectedIndex + 1) % len(menuItems)
-				}
-				updateWelcomeState()
-			}
-		case <-ticker.C:
-			if !statusMsgClearTime.IsZero() && time.Now().After(statusMsgClearTime) {
-				statusMsgClearTime = time.Time{}
-				updateWelcomeState()
-			}
-		}
-	}
+	return nil
 }
 
 func (a *App) cmdSelfUpdate() error {
 	fmt.Println("\nChecking for updates...")
-	client := &http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequestWithContext(a.ctx, "GET", "https://api.github.com/repos/Boredooms/Moodwave-CLI/releases/latest", nil)
+
+	result, err := updater.CheckLatest(a.ctx)
 	if err != nil {
-		return fmt.Errorf("failed to create update request: %w", err)
+		return fmt.Errorf("checking for updates: %w", err)
 	}
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to check update: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("github API returned status: %s", resp.Status)
-	}
-
-	var release struct {
-		TagName string `json:"tag_name"`
-		Assets  []struct {
-			Name        string `json:"name"`
-			DownloadURL string `json:"browser_download_url"`
-		} `json:"assets"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return fmt.Errorf("failed to decode release info: %w", err)
-	}
-
-	currentVersion := config.Version
-	latestVersion := strings.TrimPrefix(release.TagName, "v")
-	currentVersionClean := strings.TrimPrefix(currentVersion, "v")
-
-	if currentVersionClean == latestVersion {
-		fmt.Printf("You are already on the latest version (v%s).\n", currentVersionClean)
+	if !result.Available {
+		fmt.Printf("You are already on the latest version (v%s).\n", result.CurrentVersion)
 		return nil
 	}
 
-	fmt.Printf("New version found: %s (Current: v%s)\n", release.TagName, currentVersionClean)
+	fmt.Printf("New version found: v%s (current: v%s)\n", result.LatestVersion, result.CurrentVersion)
 
-	goos := runtime.GOOS
-	goarch := runtime.GOARCH
-	targetAsset := ""
-	for _, asset := range release.Assets {
-		nameLower := strings.ToLower(asset.Name)
-		if strings.HasSuffix(nameLower, ".sha256") {
-			continue
-		}
-		if strings.Contains(nameLower, goos) && strings.Contains(nameLower, goarch) {
-			targetAsset = asset.DownloadURL
-			break
-		}
-	}
-
-	if targetAsset == "" {
-		return fmt.Errorf("no release binary found matching your OS/Architecture (%s/%s)", goos, goarch)
-	}
-
-	fmt.Printf("Downloading update from %s...\n", targetAsset)
-	downloadReq, err := http.NewRequestWithContext(a.ctx, "GET", targetAsset, nil)
+	newTag, err := updater.Apply(a.ctx, result.Release, func(msg string) {
+		fmt.Printf("%s\n", msg)
+	})
 	if err != nil {
-		return fmt.Errorf("failed to create download request: %w", err)
+		return fmt.Errorf("update failed: %w", err)
 	}
 
-	downloadResp, err := client.Do(downloadReq)
-	if err != nil {
-		return fmt.Errorf("download failed: %w", err)
-	}
-	defer downloadResp.Body.Close()
-
-	if downloadResp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to download update: status %s", downloadResp.Status)
-	}
-
-	exePath, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to locate running executable: %w", err)
-	}
-
-	oldPath := exePath + ".old"
-	_ = os.Remove(oldPath)
-
-	if err := os.Rename(exePath, oldPath); err != nil {
-		return fmt.Errorf("failed to rename running binary: %w", err)
-	}
-
-	newFile, err := os.OpenFile(exePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
-	if err != nil {
-		_ = os.Rename(oldPath, exePath)
-		return fmt.Errorf("failed to create new binary file: %w", err)
-	}
-	defer newFile.Close()
-
-	if _, err := io.Copy(newFile, downloadResp.Body); err != nil {
-		newFile.Close()
-		_ = os.Rename(oldPath, exePath)
-		return fmt.Errorf("failed to write update to file: %w", err)
-	}
-
-	_ = os.Remove(oldPath)
-
-	fmt.Printf("\nSuccessfully updated to %s! Please run moodwave again.\n", release.TagName)
+	fmt.Printf("\nSuccessfully updated to %s! Please run moodwave again.\n", newTag)
 	return nil
 }

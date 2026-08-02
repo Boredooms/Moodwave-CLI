@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export default function Nav({ version = "v1.0.1" }: { version?: string }) {
+export default function Nav({ version = "v2.0.0" }: { version?: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const links = [
     { href: "/#how-it-works", label: "How it works" },
     { href: "/#install", label: "Install" },
+    { href: "/docs", label: "Docs" },
     { href: "/changelog", label: "Changelog" },
     { href: "https://github.com/Boredooms/Moodwave-CLI", label: "GitHub", external: true },
   ];

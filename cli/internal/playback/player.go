@@ -245,16 +245,30 @@ type availableBackend interface {
 
 // backendsFor returns the ordered list of backends to try for this OS.
 func backendsFor(goos, override string) []availableBackend {
-	all := []availableBackend{
-		&mpvBackend{},
-		&ffplayBackend{},
-	}
+	var all []availableBackend
 
 	switch goos {
 	case "darwin":
-		all = append([]availableBackend{&afplayBackend{}}, all...)
+		// On macOS: prefer ffplay (handles streams + uses CoreAudio),
+		// then mpv, then afplay (native CoreAudio with ffmpeg pipe for streams)
+		all = []availableBackend{
+			&ffplayBackend{},
+			&mpvBackend{},
+			&afplayBackend{},
+		}
 	case "windows":
-		all = append(all, &windowsMediaBackend{})
+		// On Windows: ffplay > mpv > powershell fallback
+		all = []availableBackend{
+			&ffplayBackend{},
+			&mpvBackend{},
+			&windowsMediaBackend{},
+		}
+	default:
+		// On Linux: ffplay > mpv
+		all = []availableBackend{
+			&ffplayBackend{},
+			&mpvBackend{},
+		}
 	}
 
 	if override != "" {
@@ -267,6 +281,23 @@ func backendsFor(goos, override string) []availableBackend {
 	}
 
 	return all
+}
+
+func findFFplay() string {
+	execName := "ffplay"
+	if runtime.GOOS == "windows" {
+		execName = "ffplay.exe"
+	}
+	if p, err := exec.LookPath(execName); err == nil {
+		return p
+	}
+	if cacheDir, err := os.UserCacheDir(); err == nil {
+		p := filepath.Join(cacheDir, "moodwave", execName)
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return execName
 }
 
 func findYtDlp() string {
@@ -340,8 +371,22 @@ type ffplayBackend struct{}
 func (b *ffplayBackend) Name() string { return "ffplay" }
 
 func (b *ffplayBackend) Available() bool {
-	_, err := exec.LookPath("ffplay")
-	return err == nil
+	// Check system PATH first
+	if _, err := exec.LookPath("ffplay"); err == nil {
+		return true
+	}
+	// Check moodwave cache (platform-aware binary name)
+	if cacheDir, err := os.UserCacheDir(); err == nil {
+		execName := "ffplay"
+		if runtime.GOOS == "windows" {
+			execName = "ffplay.exe"
+		}
+		p := filepath.Join(cacheDir, "moodwave", execName)
+		if _, err := os.Stat(p); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func streamURLToWriter(ctx context.Context, streamURL string, w io.WriteCloser, isStatic bool) {
@@ -421,16 +466,25 @@ func streamURLToWriter(ctx context.Context, streamURL string, w io.WriteCloser, 
 }
 
 func (b *ffplayBackend) Start(ctx context.Context, streamURL string, stderr io.Writer) (*exec.Cmd, error) {
+	ffplayPath := findFFplay()
 	isStatic := strings.Contains(streamURL, "googlevideo.com") || strings.Contains(streamURL, "jamendo.com") || strings.Contains(streamURL, "storage.jamendo.com")
 
+	// For static/signed URLs (YouTube, Jamendo), pipe through our HTTP streamer
+	// to handle auth headers, retries, and resume properly
 	if isStatic {
-		ffplayCmd := exec.CommandContext(ctx, "ffplay",
+		args := []string{
 			"-nodisp",
 			"-autoexit",
 			"-infbuf",
 			"-loglevel", "quiet",
-			"-",
-		)
+		}
+		// On macOS, force CoreAudio output for spatial audio support
+		if runtime.GOOS == "darwin" {
+			args = append(args, "-audio_buffer_size", "4096")
+		}
+		args = append(args, "-") // read from stdin
+
+		ffplayCmd := exec.CommandContext(ctx, ffplayPath, args...)
 
 		pipe, err := ffplayCmd.StdinPipe()
 		if err != nil {
@@ -449,7 +503,8 @@ func (b *ffplayBackend) Start(ctx context.Context, streamURL string, stderr io.W
 		return ffplayCmd, nil
 	}
 
-	cmd := exec.CommandContext(ctx, "ffplay",
+	// For non-static URLs (radio streams, etc.), use ffplay's built-in HTTP with reconnect
+	args := []string{
 		"-nodisp",
 		"-autoexit",
 		"-infbuf",
@@ -459,8 +514,13 @@ func (b *ffplayBackend) Start(ctx context.Context, streamURL string, stderr io.W
 		"-reconnect_streamed", "1",
 		"-reconnect_delay_max", "5",
 		"-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-		streamURL,
-	)
+	}
+	if runtime.GOOS == "darwin" {
+		args = append(args, "-audio_buffer_size", "4096")
+	}
+	args = append(args, streamURL)
+
+	cmd := exec.CommandContext(ctx, ffplayPath, args...)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = stderr
 	return cmd, cmd.Start()
@@ -470,7 +530,8 @@ func (b *ffplayBackend) Pause(cmd *exec.Cmd)  { pauseProcess(cmd) }
 func (b *ffplayBackend) Resume(cmd *exec.Cmd) { resumeProcess(cmd) }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// afplay backend (macOS)
+// afplay backend (macOS) — uses CoreAudio for native spatial audio support
+// Only works with local files; for streaming URLs, ffplay/mpv are used instead.
 // ──────────────────────────────────────────────────────────────────────────────
 
 type afplayBackend struct{}
@@ -483,8 +544,78 @@ func (b *afplayBackend) Available() bool {
 }
 
 func (b *afplayBackend) Start(ctx context.Context, streamURL string, stderr io.Writer) (*exec.Cmd, error) {
-	// afplay can play local files; for streams, use curl | afplay pipe.
-	// For radio streams, fallback to mpv.
+	// afplay only handles local files — for HTTP streams, we pipe through ffmpeg → afplay
+	// ffmpeg decodes the stream, afplay plays raw PCM through CoreAudio (spatial audio support)
+	isStream := strings.HasPrefix(streamURL, "http://") || strings.HasPrefix(streamURL, "https://")
+
+	if isStream {
+		// Use ffmpeg to decode the network stream to PCM, pipe to afplay for native CoreAudio output
+		// This gives us: network streaming + CoreAudio spatial audio + proper format handling
+		ffmpegPath := "ffmpeg"
+		if cacheDir, err := os.UserCacheDir(); err == nil {
+			cached := filepath.Join(cacheDir, "moodwave", "ffmpeg")
+			if _, err := os.Stat(cached); err == nil {
+				ffmpegPath = cached
+			}
+		}
+
+		// ffmpeg decodes to WAV on stdout → afplay reads stdin
+		cmd := exec.CommandContext(ctx, ffmpegPath,
+			"-hide_banner",
+			"-loglevel", "quiet",
+			"-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+			"-reconnect", "1",
+			"-reconnect_at_eof", "1",
+			"-reconnect_streamed", "1",
+			"-i", streamURL,
+			"-f", "s16le",    // raw PCM
+			"-acodec", "pcm_s16le",
+			"-ar", "44100",   // 44.1kHz
+			"-ac", "2",       // stereo
+			"pipe:1",         // output to stdout
+		)
+		cmd.Stderr = stderr
+
+		// Pipe ffmpeg stdout → afplay stdin
+		afplayCmd := exec.CommandContext(ctx, "afplay",
+			"-f", "LEI16",    // little-endian signed 16-bit
+			"-r", "44100",    // 44.1kHz
+			"-c", "2",        // stereo
+			"-",              // read from stdin
+		)
+
+		pipe, err := cmd.StdoutPipe()
+		if err != nil {
+			// Fallback: if pipe setup fails, try direct URL (will likely fail for HTTP)
+			fallback := exec.CommandContext(ctx, "afplay", streamURL)
+			fallback.Stderr = stderr
+			return fallback, fallback.Start()
+		}
+
+		afplayCmd.Stdin = pipe
+		afplayCmd.Stdout = io.Discard
+		afplayCmd.Stderr = stderr
+
+		// Start ffmpeg first, then afplay
+		if err := cmd.Start(); err != nil {
+			return nil, fmt.Errorf("failed to start ffmpeg for afplay pipe: %w", err)
+		}
+		if err := afplayCmd.Start(); err != nil {
+			cmd.Process.Kill()
+			return nil, fmt.Errorf("failed to start afplay: %w", err)
+		}
+
+		// Return afplay cmd for process management (killing afplay stops playback)
+		// Also set up cleanup for ffmpeg when afplay exits
+		go func() {
+			_ = afplayCmd.Wait()
+			_ = cmd.Process.Kill()
+		}()
+
+		return afplayCmd, nil
+	}
+
+	// Local files play directly through CoreAudio (full spatial audio, Atmos, etc.)
 	cmd := exec.CommandContext(ctx, "afplay", streamURL)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = stderr
@@ -511,23 +642,27 @@ func (b *windowsMediaBackend) Available() bool {
 }
 
 func (b *windowsMediaBackend) Start(ctx context.Context, streamURL string, stderr io.Writer) (*exec.Cmd, error) {
-	// Escape single quotes for PowerShell single-quoted string literal
-	escapedURL := strings.ReplaceAll(streamURL, "'", "''")
+	// Use PowerShell with WPF dispatcher pump for network audio streaming
 	psScript := fmt.Sprintf(`
-Add-Type -AssemblyName PresentationCore
-$player = New-Object System.Windows.Media.MediaPlayer
-$player.Volume = 0.8
-$player.Open([Uri]'%s')
-$player.Play()
-while ($true) { Start-Sleep -Seconds 1 }
-`, escapedURL)
+[System.Reflection.Assembly]::LoadWithPartialName('PresentationCore') | Out-Null
+$synth = New-Object System.Windows.Media.MediaPlayer
+$synth.Open([System.Uri]::new('%s'))
+Start-Sleep -Milliseconds 2000
+$synth.Play()
+Register-ObjectEvent $synth MediaFailed -Action { Write-Error $EventArgs.ErrorException.Message; exit 1 } | Out-Null
+while ($synth.Position -lt $synth.NaturalDuration.TimeSpan -or $synth.NaturalDuration.HasTimeSpan -eq $false) {
+    Start-Sleep -Milliseconds 500
+    [System.Windows.Threading.Dispatcher]::CurrentDispatcher.Invoke([System.Windows.Threading.DispatcherPriority]::Background, [System.Action]{})
+}
+`, strings.ReplaceAll(streamURL, "'", "''"))
 
 	cmd := exec.CommandContext(ctx, "powershell",
 		"-NonInteractive",
 		"-NoProfile",
 		"-STA",
-		"-Command", psScript,
+		"-Command", "-",
 	)
+	cmd.Stdin = strings.NewReader(psScript)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = stderr
 	return cmd, cmd.Start()

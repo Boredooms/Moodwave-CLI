@@ -19,14 +19,14 @@ async function getLatestVersion() {
         "User-Agent": "Moodwave-Website-Builder"
       }
     });
-    if (!res.ok) return "v1.0.0";
+    if (!res.ok) return "v2.0.0";
     const tags = await res.json();
     if (tags && tags.length > 0) {
-      return tags[0].name || "v1.0.0";
+      return tags[0].name || "v2.0.0";
     }
-    return "v1.0.0";
+    return "v2.0.0";
   } catch (e) {
-    return "v1.0.0";
+    return "v2.0.0";
   }
 }
 

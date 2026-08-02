@@ -7,14 +7,10 @@ import SplitText from "../../components/ui/SplitText";
 import FadeIn from "../../components/ui/FadeIn";
 import { 
   Flame, 
-  Terminal, 
   Sliders, 
   GitBranch, 
   Cpu, 
-  Volume2, 
   Activity, 
-  TrendingDown, 
-  FolderPlus, 
   Palette,
   ExternalLink,
   ChevronDown,
@@ -40,6 +36,40 @@ interface ReleaseItem {
 }
 
 const staticReleases: ReleaseItem[] = [
+  {
+    version: "v2.0.0",
+    date: "August 03, 2026",
+    title: "The Terminal Rebuild — Bubble Tea, Live Animations & Real Playback",
+    summary: "A ground-up rewrite of the terminal UI on Bubble Tea, a redesigned playback state machine, 20+ live animations, full theme support, and an in-app self-updater.",
+    githubUrl: "https://github.com/Boredooms/Moodwave-CLI/releases/tag/v2.0.0",
+    features: [
+      "Full Bubble Tea TUI Rewrite: Replaced the previous renderer with a proper async message-driven architecture (internal/tui) — every screen (Home, Search, Playing, Playlist Manager, Doctor, Theme Select) is now a first-class, independently testable view.",
+      "Dedicated Personal Playlist: A separate, strictly FIFO personal playlist that always plays before the live/auto-generated queue, with its own window, add/remove/clear controls, and zero interference with the currently playing track.",
+      "Redesigned Playback Queue: Replaced two desync-prone slices with a single PlaybackQueue type (queue.go) and one consolidated resolveOutcome() decision point for what plays next across repeat-one/all/off, manual skip, and failure recovery.",
+      "20+ Terminal Visualizers: Doom-style fire, matrix, plasma, aurora, lava, DNA, lightning, spiral, heartbeat, campfire, starfield, and more — all dynamically sized to the terminal window.",
+      "7 Switchable Themes: Midnight, Dracula, Nord, Tokyo Night, Gruvbox, Catppuccin, and Solarized, applied live across every screen with an interactive preview selector.",
+      "In-TUI Self-Updater: Moodwave now checks GitHub for new releases automatically on every launch and can download + install updates in place from the home screen — no separate terminal command required.",
+      "Auto-installing Audio Backend: Cross-platform ffplay auto-download (Windows/macOS/Linux) plus a full Doctor TUI with one-key auto-fix for missing dependencies.",
+      "Hand-designed Pixel Pet Animation: A small animated companion on the Home and Search screens, replacing the old static waveform placeholder."
+    ],
+    fixes: [
+      "Fixed double-audio and stale-controller races during fast track transitions by tagging every playback message with its originating controller instance.",
+      "Fixed repeat-one getting stuck retrying a permanently broken video by adding a consecutive-failure cap that force-advances after 3 failed resolves.",
+      "Fixed duplicate rows appearing in search results and playlists caused by YouTube occasionally repeating the same video across result shelves — added video ID de-duplication.",
+      "Fixed manual searches sometimes dumping 10+ tracks into the queue instead of the single selected track, by replacing a shared mutable autoplay flag with an explicit SearchIntent carried on the result message itself.",
+      "Fixed the animation tick loop stalling/2x-speeding after track transitions by ensuring every tick handler path always reschedules the next tick."
+    ],
+    performance: [
+      "Rewrote YouTube search to stream-parse the results payload instead of buffering the full page response, with a pooled HTTP transport and sub-timeouts to fail fast on slow network hops.",
+      "Added retry-once-with-backoff for transient search/resolve failures so flaky connections surface a clean message instead of raw Go errors in the UI."
+    ],
+    metrics: {
+      binarySize: "8.2 MB",
+      scanLatency: "0.3 ms",
+      themes: 7,
+      visualizers: 24
+    }
+  },
   {
     version: "v1.0.5",
     date: "July 10, 2026",
@@ -210,9 +240,10 @@ export default function Changelog() {
   const [activeMetricTab, setActiveMetricTab] = useState<"size" | "speed" | "themes">("speed");
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
-    "v1.0.5": true,
-    "v1.0.4": true,
-    "v1.0.2": true,
+    "v2.0.0": true,
+    "v1.0.5": false,
+    "v1.0.4": false,
+    "v1.0.2": false,
     "v1.0.0": false,
   });
 
@@ -228,7 +259,13 @@ export default function Changelog() {
         const data = await res.json();
         if (Array.isArray(data)) {
           // Merge API releases with static template metadata
-          const merged: ReleaseItem[] = data.map((gitRelease: any) => {
+          const merged: ReleaseItem[] = data.map((gitRelease: {
+            tag_name: string;
+            name: string;
+            html_url: string;
+            published_at: string;
+            body: string;
+          }) => {
             const version = gitRelease.tag_name;
             const staticMatch = staticReleases.find(r => r.version === version);
             
@@ -331,11 +368,19 @@ export default function Changelog() {
             };
           });
 
+          // Keep any static entries that don't have a matching GitHub tag
+          // yet (e.g. a version documented here ahead of its tagged
+          // release) so the changelog never silently drops content the
+          // live API hasn't caught up to.
+          const mergedVersions = new Set(merged.map((r) => r.version));
+          const unreleasedStatic = staticReleases.filter(r => !mergedVersions.has(r.version));
+          const combined = [...merged, ...unreleasedStatic];
+
           // Sort releases to keep newest on top
-          merged.sort((a, b) => {
+          combined.sort((a, b) => {
             return b.version.localeCompare(a.version, undefined, { numeric: true, sensitivity: 'base' });
           });
-          setReleases(merged);
+          setReleases(combined);
         }
       } catch (e) {
         console.error("Failed to fetch live GitHub releases:", e);
@@ -348,7 +393,7 @@ export default function Changelog() {
     setExpandedCards(prev => ({ ...prev, [ver]: !prev[ver] }));
   };
 
-  const latestVersion = releases[0]?.version || "v1.0.5";
+  const latestVersion = releases[0]?.version || "v2.0.0";
 
   return (
     <div style={{ background: "#080808", minHeight: "100vh", color: "#ffffff", paddingBottom: "100px", position: "relative" }}>
@@ -425,19 +470,20 @@ export default function Changelog() {
                 { version: "v1.0.3", speed: 0.4,  size: 8.1, themes: 9, labelSpeed: "0.4ms",  labelSize: "8.1MB", labelThemes: "9 themes", date: "Jul 9" },
                 { version: "v1.0.4", speed: 0.3,  size: 8.0, themes: 9, labelSpeed: "0.3ms",  labelSize: "8.0MB", labelThemes: "9 themes", date: "Jul 9" },
                 { version: "v1.0.5", speed: 0.3,  size: 8.0, themes: 9, labelSpeed: "0.3ms",  labelSize: "8.0MB", labelThemes: "9 themes", date: "Jul 10" },
+                { version: "v2.0.0", speed: 0.3,  size: 8.2, themes: 7, labelSpeed: "0.3ms",  labelSize: "8.2MB", labelThemes: "7 themes", date: "Aug 3" },
               ];
 
-              const xCoords = [60, 196, 332, 468, 604, 740];
+              const xCoords = [50, 165, 280, 395, 510, 625, 740];
               const points = chartData.map((d, idx) => {
                 let y = 160;
                 if (activeMetricTab === "speed") {
-                  const ys = [160, 95, 35, 35, 31, 30];
+                  const ys = [160, 95, 35, 35, 31, 30, 30];
                   y = ys[idx];
                 } else if (activeMetricTab === "size") {
-                  const ys = [160, 148, 45, 45, 32, 30];
+                  const ys = [160, 148, 45, 45, 32, 30, 34];
                   y = ys[idx];
                 } else {
-                  const ys = [160, 160, 30, 30, 30, 30];
+                  const ys = [160, 160, 30, 30, 30, 30, 40];
                   y = ys[idx];
                 }
                 return { 
@@ -591,7 +637,7 @@ export default function Changelog() {
               </div>
               <div>
                 <span className="text-[10px] font-mono text-[#555] uppercase tracking-widest block mb-1">Total presets</span>
-                <span className="font-mono text-sm md:text-base font-semibold text-white">15 combined TUI presets</span>
+                <span className="font-mono text-sm md:text-base font-semibold text-white">31 combined TUI presets</span>
               </div>
             </div>
           </div>
@@ -773,7 +819,7 @@ function FireplaceSimulator() {
       "text-white font-bold" // █
     ];
 
-    let fireGrid = Array(height).fill(0).map(() => Array(width).fill(0));
+    const fireGrid = Array(height).fill(0).map(() => Array(width).fill(0));
 
     const step = () => {
       // Seed bottom row with Gaussian curves

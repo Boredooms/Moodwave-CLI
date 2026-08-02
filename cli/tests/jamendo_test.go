@@ -9,6 +9,9 @@ import (
 )
 
 func TestJamendoSearchDirect(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live Jamendo network test in -short mode (used in CI)")
+	}
 	clientID := "d2e96803"
 	j := sources.NewJamendoAdapter(clientID)
 

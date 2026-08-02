@@ -22,3 +22,6 @@ website/.env.production.local
 website/npm-debug.log*
 website/yarn-debug.log*
 website/yarn-error.log*
+
+# Graphify (local knowledge graph - not committed)
+.graphify/

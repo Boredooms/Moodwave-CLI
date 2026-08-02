@@ -9,20 +9,20 @@ Moodwave is a native binary. No Node.js, Python, or any runtime required.
 ### macOS / Linux
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/moodwave/moodwave/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Boredooms/Moodwave-CLI/main/cli/scripts/install.sh | bash
 ```
 
 ### Windows (PowerShell)
 
 ```powershell
-irm https://raw.githubusercontent.com/moodwave/moodwave/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/Boredooms/Moodwave-CLI/main/cli/scripts/install.ps1 | iex
 ```
 
 ---
 
 ## Manual Install
 
-Download the binary for your platform from [GitHub Releases](https://github.com/moodwave/moodwave/releases).
+Download the binary for your platform from [GitHub Releases](https://github.com/Boredooms/Moodwave-CLI/releases).
 
 | Platform | File |
 |----------|------|
@@ -30,6 +30,7 @@ Download the binary for your platform from [GitHub Releases](https://github.com/
 | macOS (Intel) | `moodwave-darwin-amd64` |
 | Linux (x86_64) | `moodwave-linux-amd64` |
 | Linux (ARM64) | `moodwave-linux-arm64` |
+| Linux (ARMv7) | `moodwave-linux-arm` |
 | Windows (x86_64) | `moodwave-windows-amd64.exe` |
 | Windows (ARM64) | `moodwave-windows-arm64.exe` |
 
@@ -37,7 +38,7 @@ Download the binary for your platform from [GitHub Releases](https://github.com/
 
 ```sh
 # Download (replace VERSION and PLATFORM as needed)
-curl -sSL https://github.com/moodwave/moodwave/releases/download/VERSION/moodwave-darwin-arm64 -o moodwave
+curl -fsSL https://github.com/Boredooms/Moodwave-CLI/releases/download/VERSION/moodwave-darwin-arm64 -o moodwave
 
 # Make executable
 chmod +x moodwave
@@ -70,11 +71,11 @@ moodwave --version
 
 ## Build from Source
 
-Requirements: Go 1.22+
+Requirements: Go 1.24+
 
 ```sh
-git clone https://github.com/moodwave/moodwave
-cd moodwave
+git clone https://github.com/Boredooms/Moodwave-CLI
+cd Moodwave-CLI/cli
 go mod download
 
 # Build for current platform
@@ -91,7 +92,12 @@ scripts\build.ps1 -Only windows
 
 ## Audio Playback Setup
 
-Moodwave streams audio via a subprocess backend. Install one of:
+Moodwave streams audio via a subprocess backend. **This step is optional** — if no
+backend is found on your `PATH`, Moodwave auto-downloads a static `ffplay` build
+into its own cache directory on first playback, and `moodwave doctor` offers a
+one-key auto-fix (`[F]`) as well.
+
+To install one yourself instead:
 
 ### mpv (recommended — best format support)
 
@@ -121,9 +127,24 @@ winget install ffmpeg
 # or: choco install ffmpeg
 ```
 
-> **Note:** If no audio backend is installed, Moodwave still works in
-> info-only mode — it shows the recommended station/track and its stream URL
-> so you can open it in a browser or copy it to another player.
+> **Note:** On macOS, `afplay` (CoreAudio) is used as a native fallback. On Windows,
+> a native Media Foundation backend is available out of the box. If every backend
+> fails, Moodwave degrades to info-only mode — showing the recommended
+> station/track and its stream URL so you can open it elsewhere.
+
+---
+
+## Updating
+
+Moodwave updates itself in place:
+
+```sh
+moodwave update
+```
+
+The interactive TUI also checks for new releases automatically on every launch.
+When one is found, a banner appears on the home screen and pressing `[U]`
+downloads and installs it without leaving the app.
 
 ---
 

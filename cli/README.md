@@ -8,9 +8,25 @@
 
 ---
 
-Moodwave scans your codebase, infers the current coding mood, and plays matching music directly in your terminal — with ambient ASCII animations, waveforms, and reactive visuals.
+Moodwave scans your codebase, infers the current coding mood, and plays matching music directly in your terminal — with a full Bubble Tea TUI, 20+ live visualizers, switchable themes, and a curated personal playlist.
 
 **The CLI is the product. The website is promotional only.**
+
+---
+
+## Screenshots
+
+<p align="center">
+  <img src="../docs/screenshots/Home.png" width="820" alt="Moodwave home screen with banner, menu, and animated pixel pet" />
+</p>
+
+<p align="center">
+  <img src="../docs/screenshots/playing.png" width="820" alt="Moodwave now-playing screen with live visualizer and progress bar" />
+</p>
+
+<p align="center">
+  <img src="../docs/screenshots/search_console.png" width="820" alt="Moodwave search screen with live YouTube results" />
+</p>
 
 ---
 
@@ -41,20 +57,19 @@ go install ./cmd/moodwave
 ## Quick Start
 
 ```sh
+# Check system health (terminal, audio backend, sources)
+moodwave doctor
+
 # Initialize config
 moodwave init
 
-# Scan repo and detect mood
-moodwave scan
+# Launch the interactive TUI — scan, search, play, manage playlists
+moodwave
 
-# Check system health
-moodwave doctor
-
-# Play music matched to detected mood
-moodwave play
-
-# See all commands
-moodwave --help
+# Or drive it non-interactively
+moodwave scan        # scan repo and detect mood
+moodwave play        # play music matched to detected mood
+moodwave --help      # see all commands
 ```
 
 ---
@@ -79,6 +94,40 @@ moodwave --help
 | `moodwave doctor`  | Run diagnostics on all subsystems           |
 | `moodwave update`  | Update the CLI binary in-place to latest    |
 
+Moodwave also checks for updates automatically every time the TUI launches — when
+one is available, a banner appears on the home screen and `[U]` installs it in place.
+
+---
+
+## TUI Keyboard Shortcuts
+
+| Key         | Context               | Action                              |
+|-------------|-----------------------|-------------------------------------|
+| `↑` / `↓`   | Anywhere              | Navigate                            |
+| `Enter`     | Anywhere              | Select                              |
+| `Space`     | Now Playing           | Pause / resume                      |
+| `N`         | Now Playing           | Next track                          |
+| `L`         | Now Playing           | Cycle repeat: off → one → all       |
+| `P`         | Now Playing           | Open Live Queue                     |
+| `O`         | Now Playing / Queue   | Open Personal Playlist              |
+| `A`         | Playlist views        | Search and add a track              |
+| `D`         | Playlist views        | Remove the selected track           |
+| `C`         | Personal Playlist     | Clear the whole personal playlist   |
+| `T`         | Anywhere              | Theme selector                      |
+| `V`         | Anywhere              | Cycle visualizer                    |
+| `U`         | Home                  | Install available update            |
+| `Q` / `Esc` | Anywhere              | Back / quit                         |
+
+### Personal Playlist vs Live Queue
+
+Moodwave keeps two separate lists, and the distinction matters:
+
+- **Personal Playlist** — tracks you deliberately added. Strictly first-in,
+  first-out, and it **always plays before** anything auto-generated. It has its
+  own window (`[O]`), and clearing it never touches what's currently playing.
+- **Live Queue** — search results, autonomous play, and endless-listening
+  refills. Only takes over once the Personal Playlist is empty.
+
 ---
 
 ## Architecture
@@ -94,8 +143,10 @@ Moodwave-CLI/
 │  │  ├─ mood/          Heuristic mood inference
 │  │  ├─ recommender/   Mood-to-track matching & ranking
 │  │  ├─ sources/       YouTube/Jamendo/Radio Browser adapters
-│  │  ├─ playback/      Audio controllers (mpv/ffplay)
-│  │  └─ visuals/       ANSI escape TUI & equalizer
+│  │  ├─ playback/      Audio controllers (mpv/ffplay/afplay) + auto-install
+│  │  ├─ tui/           Bubble Tea TUI: views, queue, themes, animations
+│  │  ├─ updater/       GitHub release check + in-place self-update
+│  │  └─ visuals/       ANSI escape renderer & equalizer (non-TUI paths)
 │  ├─ scripts/          Deployment/install script files
 │  └─ tests/            Integration and tests
 ├─ website/             Promotional website (Next.js)
@@ -138,13 +189,25 @@ Detected moods and their music mapping:
 
 ---
 
-## Terminal Visual Modes
+## Terminal Visualizers
 
-- `wave` — Animated sine waveform responding to music energy
-- `spectrum` — Equalizer bars responding to track energy
-- `pulse` — Ambient pulse rings
-- `minimal` — Status-only compact mode
-- `quiet` — No animation, text only
+Cycle live with `[V]` in the TUI, or set a default with `moodwave visual <mode>`.
+All visualizers size themselves to the current terminal dimensions.
+
+| | | | |
+|---|---|---|---|
+| `spectrum` | `fire` | `matrix` | `rain` |
+| `plasma` | `aurora` | `snow` | `fireflies` |
+| `lava` | `dna` | `campfire` | `smoke` |
+| `ripple` | `lightning` | `spiral` | `petals` |
+| `galaxy` | `zen` | `heartbeat` | `pendulum` |
+| `city` | `ocean` | `starfield` | `pulse` |
+
+## Themes
+
+Switch live with `[T]` in the TUI (with a color preview), or `moodwave theme <name>`.
+
+`midnight` · `dracula` · `nord` · `tokyo-night` · `gruvbox` · `catppuccin` · `solarized`
 
 ---
 
@@ -161,18 +224,23 @@ Detected moods and their music mapping:
 
 ## Development
 
+Requires **Go 1.24+**.
+
 ```sh
 # Run locally
 go run ./cmd/moodwave
+
+# Vet
+go vet ./...
+
+# Run tests (-short skips tests that hit live third-party APIs)
+go test ./... -short
 
 # Build for current platform
 make build
 
 # Build for all platforms
 make build-all
-
-# Run tests
-make test
 
 # Cross-compile
 make cross
@@ -182,16 +250,16 @@ make cross
 
 ## Documentation
 
-- [Idea & Vision](docs/idea.md)
-- [Technical Design](docs/technical.md)
-- [Architecture](docs/architecture.md)
-- [CLI Reference](docs/cli.md)
-- [CLI Design System](docs/cli_design.md)
-- [Music Sources](docs/sources.md)
-- [Command Reference](docs/commands.md)
-- [Installation Guide](docs/install.md)
-- [Project Status](docs/STATUS.md)
-- [Website Design](docs/website_design.md)
+- [Idea & Vision](../docs/idea.md)
+- [Technical Design](../docs/technical.md)
+- [Architecture](../docs/architecture.md)
+- [CLI Reference](../docs/cli.md)
+- [CLI Design System](../docs/cli_design.md)
+- [Music Sources](../docs/sources.md)
+- [Command Reference](../docs/commands.md)
+- [Installation Guide](../docs/install.md)
+- [Project Status](../docs/STATUS.md)
+- [Website Design](../docs/website_design.md)
 
 ---
 
