@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/moodwave/moodwave/internal/config"
 )
 
 // DoctorCheckStatus represents the result of a single diagnostic check.
@@ -352,7 +353,9 @@ func (m DoctorModel) renderFooter() string {
 
 func (m DoctorModel) renderStatusBar() string {
 	left := lipgloss.NewStyle().Foreground(ColorDim).Render("  ◈ moodwave doctor")
-	version := lipgloss.NewStyle().Foreground(ColorDim).Render("v1.0.5")
+	// Real build version, not a hardcoded literal (see app.go renderStatusBar).
+	version := lipgloss.NewStyle().Foreground(ColorDim).
+		Render("v" + strings.TrimPrefix(config.Version, "v"))
 
 	state := "diagnosing..."
 	if m.Done {

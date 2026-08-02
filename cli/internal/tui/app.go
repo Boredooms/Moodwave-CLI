@@ -1722,7 +1722,11 @@ func (m Model) renderStatusBar() string {
 		ms := lipgloss.NewStyle().Foreground(moodColor).Bold(true)
 		right = fmt.Sprintf("%s %s · %.0f%%", m.MoodEmoji, ms.Render(m.MoodLabel), m.MoodConfidence*100)
 	}
-	version := lipgloss.NewStyle().Foreground(ColorDim).Render("v1.0.5")
+	// Read the real build version rather than a hardcoded literal — this
+	// used to be a fixed "v1.0.5" string, so the status bar kept claiming
+	// an old version no matter what the binary actually was.
+	version := lipgloss.NewStyle().Foreground(ColorDim).
+		Render("v" + strings.TrimPrefix(config.Version, "v"))
 
 	gap := m.Width - lipgloss.Width(left) - lipgloss.Width(right) - lipgloss.Width(version) - 4
 	if gap < 0 {
