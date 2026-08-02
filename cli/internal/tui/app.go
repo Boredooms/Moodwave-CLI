@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/moodwave/moodwave/internal/config"
 	"github.com/moodwave/moodwave/internal/playback"
 	"github.com/moodwave/moodwave/internal/recommender"
 	"github.com/moodwave/moodwave/internal/updater"
@@ -158,6 +159,7 @@ func NewModel() Model {
 			{Label: "Scan Repository", Icon: "◈", Desc: "Analyze codebase mood signals"},
 			{Label: "Customize Theme", Icon: "◆", Desc: "Switch visual theme"},
 			{Label: "System Doctor", Icon: "◇", Desc: "Run diagnostics"},
+			{Label: "Check for Updates", Icon: "⬆", Desc: "Check GitHub for a newer release"},
 			{Label: "Exit", Icon: "□", Desc: "Quit Moodwave"},
 		},
 		MenuCursor: 0,
@@ -373,15 +375,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case UpdateCheckMsg:
 		m.UpdateChecked = true
 		if msg.Err != nil {
-			// Silent failure — never interrupt the user with a background
-			// check error. The banner simply doesn't appear.
+			// A failed check never blocks or interrupts — the status line
+			// just reads "update check unavailable" instead of claiming
+			// either outcome.
 			m.UpdateAvailable = false
+			m.UpdateErr = msg.Err.Error()
+			if m.StatusMsg == "Checking for updates..." {
+				m.StatusMsg = "Couldn't reach GitHub to check for updates"
+				return m, tea.Tick(3*time.Second, func(t time.Time) tea.Msg { return statusClearMsg{} })
+			}
 			return m, nil
 		}
+		m.UpdateErr = ""
 		m.UpdateAvailable = msg.Available
 		m.UpdateCurrentVersion = msg.CurrentVersion
 		m.UpdateLatestVersion = msg.LatestVersion
 		m.UpdateRelease = msg.Release
+		// Only speak up if this check was user-initiated from the menu;
+		// the automatic launch-time check stays quiet and just updates
+		// the status line.
+		if m.StatusMsg == "Checking for updates..." {
+			if msg.Available {
+				m.StatusMsg = fmt.Sprintf("Update available: v%s → v%s — press [U] to install", msg.CurrentVersion, msg.LatestVersion)
+			} else {
+				m.StatusMsg = fmt.Sprintf("You're on the latest version (v%s)", msg.CurrentVersion)
+			}
+			return m, tea.Tick(4*time.Second, func(t time.Time) tea.Msg { return statusClearMsg{} })
+		}
 		return m, nil
 
 	case UpdateApplyMsg:
@@ -522,7 +542,23 @@ func (m Model) handleMenuSelect() (tea.Model, tea.Cmd) {
 		}
 		m.Quitting = true
 		return m, tea.Quit
-	case 6: // Exit
+	case 6: // Check for Updates
+		// If a newer release was already found, Enter installs it directly
+		// (same action as [U]). Otherwise re-run the check on demand so the
+		// user always gets visible feedback instead of silence.
+		if m.UpdateAvailable && !m.UpdateInProgress && m.UpdateRelease != nil {
+			m.UpdateInProgress = true
+			m.StatusMsg = fmt.Sprintf("Downloading v%s...", m.UpdateLatestVersion)
+			return m, UpdateApplyCmd(m.UpdateRelease)
+		}
+		if m.UpdateInProgress {
+			return m, nil
+		}
+		m.UpdateChecked = false
+		m.UpdateErr = ""
+		m.StatusMsg = "Checking for updates..."
+		return m, UpdateCheckCmd()
+	case 7: // Exit
 		if m.Controller != nil {
 			m.Controller.Stop()
 		}
@@ -921,20 +957,12 @@ func (m Model) viewHome() string {
 	sections = append(sections, RenderBanner(m.Width, ColorHighlight))
 	sections = append(sections, "")
 
-	// Update banner — only shown once the background check (fired from
-	// Init on every launch) has actually found something newer. Silent
-	// otherwise: no banner, no interruption, nothing to dismiss.
-	if m.UpdateAvailable {
-		updateMsg := fmt.Sprintf("⬆ Update available: v%s → v%s   [U] Install now", m.UpdateCurrentVersion, m.UpdateLatestVersion)
-		if m.UpdateInProgress {
-			updateMsg = fmt.Sprintf("⬆ Installing v%s...", m.UpdateLatestVersion)
-		}
-		updateBanner := lipgloss.NewStyle().
-			Foreground(ColorSuccess).Bold(true).
-			Render(updateMsg)
-		sections = append(sections, lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, updateBanner))
-		sections = append(sections, "")
-	}
+	// Version + update status line. This is always rendered so the update
+	// check is never invisible: when a newer release exists it's a bright
+	// call-to-action, and when it doesn't the user still gets explicit
+	// confirmation that the check ran and they're current.
+	sections = append(sections, lipgloss.PlaceHorizontal(m.Width, lipgloss.Center, m.renderUpdateStatus()))
+	sections = append(sections, "")
 
 	// Menu panel
 	menuPanel := m.renderMenu(moodColor)
@@ -1555,6 +1583,42 @@ func (m Model) renderMenu(moodColor lipgloss.Color) string {
 		Render(strings.Join(items, "\n"))
 
 	return panel
+}
+
+// renderUpdateStatus builds the home-screen version/update line. It always
+// renders something, covering all four states of the launch-time check:
+// still running, found a newer release, already current, or the check
+// failed (network/rate-limit) — the last one stays deliberately low-key
+// since a failed background check isn't the user's problem to solve.
+func (m Model) renderUpdateStatus() string {
+	dim := lipgloss.NewStyle().Foreground(ColorDim)
+	key := lipgloss.NewStyle().Foreground(ColorHighlight).Bold(true)
+	ok := lipgloss.NewStyle().Foreground(ColorSuccess).Bold(true)
+
+	version := config.Version
+	if m.UpdateCurrentVersion != "" {
+		version = m.UpdateCurrentVersion
+	}
+	base := dim.Render("v" + strings.TrimPrefix(version, "v"))
+
+	switch {
+	case m.UpdateInProgress:
+		return base + dim.Render("  ·  ") + ok.Render(fmt.Sprintf("⬆ Installing v%s...", m.UpdateLatestVersion))
+
+	case m.UpdateAvailable:
+		return base + dim.Render("  ·  ") +
+			ok.Render(fmt.Sprintf("⬆ v%s available", m.UpdateLatestVersion)) +
+			dim.Render("  ·  ") + key.Render("[U]") + dim.Render(" Install now")
+
+	case !m.UpdateChecked:
+		return base + dim.Render("  ·  checking for updates...")
+
+	case m.UpdateErr != "":
+		return base + dim.Render("  ·  update check unavailable")
+
+	default:
+		return base + dim.Render("  ·  up to date")
+	}
 }
 
 func (m Model) renderHints() string {

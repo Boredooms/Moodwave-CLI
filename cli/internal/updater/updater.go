@@ -12,9 +12,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,10 +51,33 @@ type CheckResult struct {
 	Release *Release
 }
 
-// httpClient is shared across checks — short timeouts so a flaky network
-// never blocks CLI startup or the TUI for more than a couple seconds.
-func httpClient() *http.Client {
-	return &http.Client{Timeout: 8 * time.Second}
+// apiClient is used for the release metadata lookup only. http.Client's
+// Timeout covers the whole request *including* reading the body, so this
+// short budget is safe here (the payload is a small JSON document) and
+// keeps a flaky network from stalling CLI startup or the TUI.
+func apiClient() *http.Client {
+	return &http.Client{Timeout: 10 * time.Second}
+}
+
+// downloadClient is used for fetching the release binary. It deliberately
+// sets NO client-level Timeout: the asset is several megabytes, and a
+// whole-request deadline here would abort mid-body on any connection that
+// can't finish the transfer inside it — which is exactly how self-update
+// used to fail. Cancellation instead comes from the caller's context
+// (see Apply), while the per-phase timeouts below still fail fast on a
+// genuinely dead connection rather than hanging forever.
+func downloadClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout:   10 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 30 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
 }
 
 // CheckLatest queries GitHub for the latest release and compares it
@@ -66,7 +91,7 @@ func CheckLatest(ctx context.Context) (*CheckResult, error) {
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := httpClient().Do(req)
+	resp, err := apiClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("checking for updates: %w", err)
 	}
@@ -87,9 +112,69 @@ func CheckLatest(ctx context.Context) (*CheckResult, error) {
 	return &CheckResult{
 		CurrentVersion: currentVersion,
 		LatestVersion:  latestVersion,
-		Available:      latestVersion != "" && latestVersion != currentVersion,
-		Release:        &release,
+		// An update is only offered when the release is genuinely NEWER.
+		// A plain string inequality here would be wrong: a locally built
+		// dev binary ahead of the last published release (e.g. 2.1.0 local
+		// vs 2.0.0 released) would be told to "update", silently
+		// downgrading itself.
+		Available: latestVersion != "" && IsNewerVersion(latestVersion, currentVersion),
+		Release:   &release,
 	}, nil
+}
+
+// IsNewerVersion reports whether release version `latest` is strictly newer
+// than `current`, and therefore whether an update should be offered at all.
+func IsNewerVersion(latest, current string) bool {
+	return compareVersions(latest, current) > 0
+}
+
+// compareVersions compares two dotted numeric version strings, returning
+// >0 if a is newer than b, <0 if older, and 0 if equivalent. Any
+// pre-release/build suffix (e.g. "2.0.0-rc1", "ci-test") is ignored for
+// ordering; non-numeric components compare as 0, so an unparseable version
+// never falsely reads as newer.
+func compareVersions(a, b string) int {
+	aParts := splitVersion(a)
+	bParts := splitVersion(b)
+
+	n := len(aParts)
+	if len(bParts) > n {
+		n = len(bParts)
+	}
+
+	for i := 0; i < n; i++ {
+		var av, bv int
+		if i < len(aParts) {
+			av = aParts[i]
+		}
+		if i < len(bParts) {
+			bv = bParts[i]
+		}
+		if av != bv {
+			if av > bv {
+				return 1
+			}
+			return -1
+		}
+	}
+	return 0
+}
+
+// splitVersion turns "2.0.1-rc2" into []int{2, 0, 1}.
+func splitVersion(v string) []int {
+	// Drop any pre-release / build metadata suffix.
+	if i := strings.IndexAny(v, "-+"); i >= 0 {
+		v = v[:i]
+	}
+	var out []int
+	for _, part := range strings.Split(v, ".") {
+		n, err := strconv.Atoi(strings.TrimSpace(part))
+		if err != nil {
+			n = 0
+		}
+		out = append(out, n)
+	}
+	return out
 }
 
 // findAsset picks the release asset matching the current OS/architecture,
@@ -132,7 +217,7 @@ func Apply(ctx context.Context, release *Release, progress func(string)) (string
 		return "", fmt.Errorf("building download request: %w", err)
 	}
 
-	resp, err := httpClient().Do(req)
+	resp, err := downloadClient().Do(req)
 	if err != nil {
 		return "", fmt.Errorf("download failed: %w", err)
 	}
