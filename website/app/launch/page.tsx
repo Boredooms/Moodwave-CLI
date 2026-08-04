@@ -81,7 +81,19 @@ function WaitlistForm() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [count, setCount] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch live count on mount and after successful signup
+  const fetchCount = useCallback(async () => {
+    try {
+      const res = await fetch("/api/waitlist");
+      const data = await res.json();
+      if (typeof data.count === "number") setCount(data.count);
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { fetchCount(); }, [fetchCount]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -100,6 +112,8 @@ function WaitlistForm() {
           setStatus("success");
           setMessage(data.message || "You're in!");
           setEmail("");
+          if (typeof data.count === "number") setCount(data.count);
+          else fetchCount();
         } else {
           setStatus("error");
           setMessage(data.error || "Something went wrong.");
@@ -109,7 +123,7 @@ function WaitlistForm() {
         setMessage("Network error. Try again.");
       }
     },
-    [email, status]
+    [email, status, fetchCount]
   );
 
   return (
@@ -154,6 +168,12 @@ function WaitlistForm() {
           </motion.p>
         )}
       </AnimatePresence>
+      {count !== null && count > 0 && (
+        <p className="mt-3 text-xs font-mono text-[#444] text-center">
+          <span className="text-[#888] font-semibold">{count.toLocaleString()}</span>{" "}
+          {count === 1 ? "person" : "people"} on the waitlist
+        </p>
+      )}
     </form>
   );
 }
