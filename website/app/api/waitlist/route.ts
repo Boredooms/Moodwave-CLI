@@ -18,8 +18,16 @@ let redisClient: ReturnType<typeof createClient> | null = null;
 
 async function getRedis() {
   if (!redisClient) {
-    redisClient = createClient({ url: process.env.REDIS_URL });
+    const url = process.env.REDIS_URL;
+    if (!url) {
+      throw new Error("REDIS_URL environment variable is not set");
+    }
+    redisClient = createClient({ url });
     redisClient.on("error", (err) => console.error("Redis error:", err));
+    await redisClient.connect();
+  }
+  // Reconnect if disconnected (serverless cold start edge case)
+  if (!redisClient.isOpen) {
     await redisClient.connect();
   }
   return redisClient;
