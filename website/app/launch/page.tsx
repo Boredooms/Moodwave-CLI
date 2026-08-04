@@ -4,21 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LAUNCH COUNTDOWN PAGE
-//
-// This page is the ONLY thing visible on the entire website until September 3,
-// 2026 at 06:00 AM IST. The server-side middleware (middleware.ts) redirects
-// every other route here before any HTML is generated, so there is nothing to
-// bypass or inspect. After the date passes, this page is no longer reachable
-// (middleware stops redirecting, and nobody links to /launch).
-//
-// Features:
-// - Real-time countdown clock with calendar-page-turn animation on day flip
-// - Email waitlist form (submits to /api/waitlist)
-// - Fully self-contained — no Nav, no links, no route hints
-// - Smooth Lenis-style scroll (page is short enough not to scroll, but the
-//   wrapper prevents jank on overscroll)
-// - GSAP-style entrance animation via Framer Motion
+// LAUNCH COUNTDOWN PAGE — Premium dark aesthetic with flowing silk gradient
 // ─────────────────────────────────────────────────────────────────────────────
 
 const UNLOCK_UTC = new Date("2026-09-03T00:30:00Z"); // 06:00 AM IST
@@ -42,33 +28,48 @@ function getTimeLeft(): TimeLeft {
   };
 }
 
-// ─── Calendar Page Turn Digit ───────────────────────────────────────────────
+// ─── Flip Clock Digit ───────────────────────────────────────────────────────
 
-function FlipDigit({ value, label }: { value: number; label: string }) {
+function FlipUnit({ value, label }: { value: number; label: string }) {
   const display = String(value).padStart(2, "0");
+  const top = display;
+  const bottom = display;
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="relative w-[72px] h-[88px] sm:w-[96px] sm:h-[116px] perspective-[600px]">
+    <div className="flex flex-col items-center gap-2 sm:gap-3">
+      <div className="relative">
         <AnimatePresence mode="popLayout">
           <motion.div
             key={display}
-            initial={{ rotateX: -90, opacity: 0 }}
-            animate={{ rotateX: 0, opacity: 1 }}
-            exit={{ rotateX: 90, opacity: 0 }}
-            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute inset-0 flex items-center justify-center rounded-xl border border-white/[0.08] bg-[#0c0c0c] shadow-[0_8px_32px_rgba(0,0,0,0.6)]"
-            style={{ backfaceVisibility: "hidden", transformStyle: "preserve-3d" }}
+            initial={{ rotateX: -80, opacity: 0, scale: 0.9 }}
+            animate={{ rotateX: 0, opacity: 1, scale: 1 }}
+            exit={{ rotateX: 80, opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="relative w-[56px] h-[72px] sm:w-[80px] sm:h-[100px] md:w-[96px] md:h-[120px]"
+            style={{ perspective: "800px", transformStyle: "preserve-3d" }}
           >
-            {/* Top fold line */}
-            <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-white/[0.04]" />
-            <span className="font-mono text-3xl sm:text-5xl font-bold text-white tracking-tight">
-              {display}
-            </span>
+            {/* Card */}
+            <div className="absolute inset-0 rounded-xl overflow-hidden border border-white/[0.06] shadow-[0_16px_48px_rgba(0,0,0,0.5)]">
+              {/* Top half */}
+              <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-[#1a1a1a] to-[#141414] flex items-end justify-center pb-0">
+                <span className="font-mono text-2xl sm:text-4xl md:text-5xl font-bold text-white translate-y-[55%]">
+                  {top}
+                </span>
+              </div>
+              {/* Bottom half */}
+              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-b from-[#111] to-[#0d0d0d] flex items-start justify-center pt-0">
+                <span className="font-mono text-2xl sm:text-4xl md:text-5xl font-bold text-white/80 -translate-y-[55%]">
+                  {bottom}
+                </span>
+              </div>
+              {/* Center fold line */}
+              <div className="absolute top-1/2 inset-x-0 h-[1px] bg-black/40" />
+              <div className="absolute top-1/2 inset-x-0 h-[1px] translate-y-[1px] bg-white/[0.03]" />
+            </div>
           </motion.div>
         </AnimatePresence>
       </div>
-      <span className="font-mono text-[10px] sm:text-xs text-[#555] uppercase tracking-[0.15em]">
+      <span className="font-mono text-[9px] sm:text-[10px] text-white/30 uppercase tracking-[0.2em]">
         {label}
       </span>
     </div>
@@ -82,9 +83,7 @@ function WaitlistForm() {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
   const [count, setCount] = useState<number | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch live count on mount and after successful signup
   const fetchCount = useCallback(async () => {
     try {
       const res = await fetch("/api/waitlist");
@@ -127,129 +126,90 @@ function WaitlistForm() {
   );
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-md mx-auto">
-      <div className="flex gap-2">
-        <input
-          ref={inputRef}
-          type="email"
-          value={email}
-          onChange={(e) => {
-            setEmail(e.target.value);
-            if (status === "error") setStatus("idle");
-          }}
-          placeholder="you@example.com"
-          required
-          disabled={status === "loading" || status === "success"}
-          className="flex-1 bg-white/[0.04] border border-white/[0.1] rounded-lg px-4 py-3 font-mono text-sm text-white placeholder-[#555] outline-none focus:border-white/30 transition-colors disabled:opacity-50"
-        />
-        <button
-          type="submit"
-          disabled={status === "loading" || status === "success"}
-          className="px-5 py-3 bg-white text-[#080808] font-mono text-sm font-semibold rounded-lg hover:bg-white/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
-        >
-          {status === "loading"
-            ? "..."
-            : status === "success"
-            ? "✓"
-            : "Join Waitlist"}
-        </button>
-      </div>
+    <div className="w-full max-w-md mx-auto">
+      <form onSubmit={handleSubmit} className="relative">
+        <div className="flex items-center bg-white/[0.04] border border-white/[0.08] rounded-full overflow-hidden transition-all focus-within:border-white/20 focus-within:bg-white/[0.06]">
+          {/* Email icon */}
+          <div className="pl-4 sm:pl-5 flex-shrink-0">
+            <svg className="w-4 h-4 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+            </svg>
+          </div>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (status === "error") setStatus("idle");
+            }}
+            placeholder="your@email.com"
+            required
+            disabled={status === "loading" || status === "success"}
+            className="flex-1 bg-transparent px-3 py-3.5 sm:py-4 font-mono text-sm text-white placeholder-white/25 outline-none disabled:opacity-50"
+          />
+          <button
+            type="submit"
+            disabled={status === "loading" || status === "success"}
+            className="mr-1.5 px-4 sm:px-6 py-2 sm:py-2.5 bg-white text-black font-mono text-xs sm:text-sm font-semibold rounded-full hover:bg-white/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
+          >
+            {status === "loading" ? (
+              <span className="inline-block w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+            ) : status === "success" ? (
+              "✓ Joined"
+            ) : (
+              "Join Waitlist"
+            )}
+          </button>
+        </div>
+      </form>
+
       <AnimatePresence>
         {message && (
           <motion.p
-            initial={{ opacity: 0, y: -4 }}
+            initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className={`mt-3 text-xs font-mono text-center ${
-              status === "success" ? "text-emerald-400" : "text-red-400"
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className={`mt-4 text-xs font-mono text-center ${
+              status === "success" ? "text-emerald-400/80" : "text-red-400/80"
             }`}
           >
             {message}
           </motion.p>
         )}
       </AnimatePresence>
+
       {count !== null && count > 0 && (
-        <p className="mt-3 text-xs font-mono text-[#444] text-center">
-          <span className="text-[#888] font-semibold">{count.toLocaleString()}</span>{" "}
-          {count === 1 ? "person" : "people"} on the waitlist
-        </p>
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="mt-4 text-center"
+        >
+          <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[0.03] border border-white/[0.06] rounded-full">
+            <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+            <span className="font-mono text-[11px] text-white/40">
+              <span className="text-white/70 font-semibold">{count.toLocaleString()}</span>{" "}
+              {count === 1 ? "person" : "people"} waiting
+            </span>
+          </span>
+        </motion.p>
       )}
-    </form>
+    </div>
   );
-}
-
-// ─── Floating particles ─────────────────────────────────────────────────────
-
-function Particles() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    let animId: number;
-    const particles: { x: number; y: number; vx: number; vy: number; r: number; a: number }[] = [];
-
-    const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-    resize();
-    window.addEventListener("resize", resize);
-
-    for (let i = 0; i < 60; i++) {
-      particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 0.3,
-        vy: (Math.random() - 0.5) * 0.3,
-        r: Math.random() * 1.5 + 0.5,
-        a: Math.random() * 0.3 + 0.05,
-      });
-    }
-
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (const p of particles) {
-        p.x += p.vx;
-        p.y += p.vy;
-        if (p.x < 0) p.x = canvas.width;
-        if (p.x > canvas.width) p.x = 0;
-        if (p.y < 0) p.y = canvas.height;
-        if (p.y > canvas.height) p.y = 0;
-
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,255,255,${p.a})`;
-        ctx.fill();
-      }
-      animId = requestAnimationFrame(draw);
-    };
-    draw();
-
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener("resize", resize);
-    };
-  }, []);
-
-  return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-0" />;
 }
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export default function LaunchPage() {
   const [time, setTime] = useState<TimeLeft>(getTimeLeft());
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const id = setInterval(() => setTime(getTimeLeft()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  // If the countdown is over and somehow this page is still rendered
-  // (shouldn't happen due to middleware, but defensive), redirect to home.
   useEffect(() => {
     if (time.total <= 0) {
       window.location.href = "/";
@@ -257,46 +217,69 @@ export default function LaunchPage() {
   }, [time.total]);
 
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden px-6" style={{ background: "#050505" }}>
-      <Particles />
+    <div
+      ref={containerRef}
+      className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden"
+      style={{ background: "#080808" }}
+    >
+      {/* Silk/fabric gradient — the signature visual like Resend's dark page */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {/* Large flowing gradient blob — top right */}
+        <div
+          className="absolute -top-[30%] -right-[20%] w-[80%] h-[100%] opacity-[0.12]"
+          style={{
+            background: "conic-gradient(from 180deg at 50% 50%, #ffffff 0deg, #888888 60deg, #333333 120deg, #666666 180deg, #ffffff 240deg, #aaaaaa 300deg, #444444 360deg)",
+            filter: "blur(100px)",
+            borderRadius: "50%",
+            transform: "rotate(-20deg)",
+          }}
+        />
+        {/* Secondary gradient blob — bottom left */}
+        <div
+          className="absolute -bottom-[40%] -left-[20%] w-[70%] h-[90%] opacity-[0.06]"
+          style={{
+            background: "conic-gradient(from 0deg at 50% 50%, #888888 0deg, #ffffff 90deg, #444444 180deg, #aaaaaa 270deg, #888888 360deg)",
+            filter: "blur(120px)",
+            borderRadius: "50%",
+            transform: "rotate(30deg)",
+          }}
+        />
+        {/* Subtle noise overlay for texture */}
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E")`,
+          }}
+        />
+      </div>
 
-      {/* Subtle radial glow */}
-      <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] pointer-events-none z-0"
-        style={{ background: "radial-gradient(circle, rgba(255,255,255,0.015) 0%, transparent 70%)" }}
-      />
-
-      <motion.div
-        initial={{ opacity: 0, y: 40 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-        className="relative z-10 flex flex-col items-center text-center max-w-2xl"
-      >
-        {/* Logo mark */}
+      <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-2xl w-full">
+        {/* Logo */}
         <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          className="mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+          className="mb-10 sm:mb-12"
         >
-          <svg className="w-12 h-12 text-white" viewBox="0 0 32 32" fill="none">
-            <circle cx="16" cy="16" r="14" fill="#080808" stroke="currentColor" strokeWidth="1.5" />
-            <path
-              d="M9 16h1.5M13 11v10M17 7v18M21 13v6M25 16h-1.5"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm">
+            <svg className="w-7 h-7 text-white" viewBox="0 0 32 32" fill="none">
+              <path
+                d="M9 16h1.5M13 11v10M17 7v18M21 13v6M25 16h-1.5"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
         </motion.div>
 
         {/* Title */}
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          className="font-mono font-bold text-white text-3xl sm:text-5xl tracking-tight mb-3"
+          transition={{ duration: 1, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
+          className="font-mono font-bold text-white text-4xl sm:text-5xl md:text-6xl tracking-tight mb-4"
         >
           moodwave
         </motion.h1>
@@ -304,79 +287,84 @@ export default function LaunchPage() {
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.55, ease: [0.16, 1, 0.3, 1] }}
-          className="font-mono text-[#666] text-sm sm:text-base mb-12 max-w-md leading-relaxed"
+          transition={{ duration: 1, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          className="text-white/40 text-sm sm:text-base max-w-sm leading-relaxed mb-14 sm:mb-16"
         >
-          A terminal-native music companion that reads your code, detects your mood, and plays the perfect soundtrack.
+          A terminal-native music companion that reads your code and plays the perfect soundtrack.
         </motion.p>
 
         {/* Countdown */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8, delay: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className="flex items-center gap-3 sm:gap-5 mb-4"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, delay: 0.55, ease: [0.16, 1, 0.3, 1] }}
+          className="flex items-start gap-2 sm:gap-4 md:gap-5 mb-6"
         >
-          <FlipDigit value={time.days} label="Days" />
-          <span className="text-[#333] text-2xl sm:text-4xl font-mono font-light mt-[-20px]">:</span>
-          <FlipDigit value={time.hours} label="Hours" />
-          <span className="text-[#333] text-2xl sm:text-4xl font-mono font-light mt-[-20px]">:</span>
-          <FlipDigit value={time.minutes} label="Min" />
-          <span className="text-[#333] text-2xl sm:text-4xl font-mono font-light mt-[-20px]">:</span>
-          <FlipDigit value={time.seconds} label="Sec" />
+          <FlipUnit value={time.days} label="Days" />
+          <span className="text-white/10 text-xl sm:text-3xl font-light mt-5 sm:mt-8 md:mt-10">:</span>
+          <FlipUnit value={time.hours} label="Hours" />
+          <span className="text-white/10 text-xl sm:text-3xl font-light mt-5 sm:mt-8 md:mt-10">:</span>
+          <FlipUnit value={time.minutes} label="Min" />
+          <span className="text-white/10 text-xl sm:text-3xl font-light mt-5 sm:mt-8 md:mt-10">:</span>
+          <FlipUnit value={time.seconds} label="Sec" />
         </motion.div>
 
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 1.0 }}
-          className="font-mono text-[10px] text-[#444] uppercase tracking-[0.2em] mb-12"
+          transition={{ delay: 0.8 }}
+          className="font-mono text-[10px] sm:text-[11px] text-white/20 uppercase tracking-[0.25em] mb-14 sm:mb-16"
         >
-          Launching September 3, 2026
+          September 3, 2026
         </motion.p>
 
         {/* Waitlist */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 1.1, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full"
+          transition={{ duration: 1, delay: 0.9, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full mb-16 sm:mb-20"
         >
-          <p className="font-mono text-xs text-[#555] mb-4">
+          <p className="font-mono text-[11px] text-white/30 mb-5 uppercase tracking-[0.15em]">
             Get notified on launch day
           </p>
           <WaitlistForm />
         </motion.div>
 
-        {/* Features teaser */}
+        {/* Feature pills */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 1.4, ease: [0.16, 1, 0.3, 1] }}
-          className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-6 text-center"
+          transition={{ duration: 1, delay: 1.1, ease: [0.16, 1, 0.3, 1] }}
+          className="flex flex-wrap items-center justify-center gap-2 sm:gap-3"
         >
           {[
             { icon: "◈", label: "Mood Detection" },
-            { icon: "▶", label: "Live Playback" },
+            { icon: "▶", label: "Terminal Playback" },
             { icon: "◆", label: "24 Visualizers" },
             { icon: "☰", label: "Smart Playlists" },
-          ].map((f) => (
-            <div key={f.label} className="flex flex-col items-center gap-2">
-              <span className="text-white text-lg">{f.icon}</span>
-              <span className="font-mono text-[10px] text-[#555] uppercase tracking-wider">
-                {f.label}
-              </span>
-            </div>
+            { icon: "⬆", label: "Auto Updates" },
+          ].map((f, i) => (
+            <motion.span
+              key={f.label}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 1.2 + i * 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[0.03] border border-white/[0.06] rounded-full"
+            >
+              <span className="text-white/50 text-xs">{f.icon}</span>
+              <span className="font-mono text-[10px] text-white/30">{f.label}</span>
+            </motion.span>
           ))}
         </motion.div>
-      </motion.div>
+      </div>
 
       {/* Footer */}
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1.8 }}
-        className="absolute bottom-6 font-mono text-[10px] text-[#333] z-10"
+        className="absolute bottom-5 font-mono text-[10px] text-white/15 z-10"
       >
         © 2026 moodwave
       </motion.p>
