@@ -5,11 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import BlackHole from "@/components/originkit/ui/blackhole";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LAUNCH PAGE — single premium screen with BlackHole background
-// Clean, minimal, no clutter. Desktop-first, responsive.
+// LAUNCH PAGE — BlackHole visible at the top, content clearly readable below
 // ─────────────────────────────────────────────────────────────────────────────
 
-const UNLOCK_UTC = new Date("2026-09-03T00:30:00Z"); // 06:00 AM IST
+const UNLOCK_UTC = new Date("2026-09-03T00:30:00Z");
 
 interface TimeLeft {
   days: number;
@@ -36,8 +35,8 @@ function CountdownUnit({ value, label }: { value: number; label: string }) {
   const display = String(value).padStart(2, "0");
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="relative w-[64px] h-[76px] sm:w-[80px] sm:h-[92px] md:w-[88px] md:h-[100px]">
+    <div className="flex flex-col items-center gap-2.5">
+      <div className="relative w-[72px] h-[84px] sm:w-[88px] sm:h-[100px] md:w-[100px] md:h-[112px]">
         <AnimatePresence mode="popLayout">
           <motion.div
             key={display}
@@ -45,22 +44,21 @@ function CountdownUnit({ value, label }: { value: number; label: string }) {
             animate={{ rotateX: 0, opacity: 1 }}
             exit={{ rotateX: 90, opacity: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute inset-0 flex items-center justify-center rounded-xl backdrop-blur-md"
+            className="absolute inset-0 flex items-center justify-center rounded-2xl"
             style={{
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.06)",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)",
+              background: "linear-gradient(180deg, #1a1a1a 0%, #111111 100%)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              boxShadow: "0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)",
               backfaceVisibility: "hidden",
-              transformStyle: "preserve-3d",
             }}
           >
-            <span className="font-mono text-3xl sm:text-4xl md:text-5xl font-bold text-white/90 tracking-tight">
+            <span className="font-mono text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight">
               {display}
             </span>
           </motion.div>
         </AnimatePresence>
       </div>
-      <span className="font-mono text-[9px] sm:text-[10px] text-white/25 uppercase tracking-[0.2em]">
+      <span className="font-mono text-[10px] text-white/30 uppercase tracking-[0.2em]">
         {label}
       </span>
     </div>
@@ -121,8 +119,8 @@ function WaitlistForm() {
         <div
           className="flex items-center gap-2 rounded-full overflow-hidden px-1.5 py-1.5 transition-all"
           style={{
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.08)",
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.12)",
           }}
         >
           <input
@@ -135,12 +133,12 @@ function WaitlistForm() {
             placeholder="your@email.com"
             required
             disabled={status === "loading" || status === "success"}
-            className="flex-1 bg-transparent px-4 py-2.5 font-mono text-sm text-white placeholder-white/20 outline-none disabled:opacity-50 min-w-0"
+            className="flex-1 bg-transparent px-4 py-2.5 font-mono text-sm text-white placeholder-white/30 outline-none disabled:opacity-50 min-w-0"
           />
           <button
             type="submit"
             disabled={status === "loading" || status === "success"}
-            className="flex-shrink-0 px-5 py-2.5 bg-white text-black font-mono text-xs font-semibold rounded-full hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="flex-shrink-0 px-5 py-2.5 bg-white text-black font-mono text-xs font-semibold rounded-full hover:bg-white/90 active:scale-[0.97] transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {status === "loading" ? (
               <span className="inline-block w-3.5 h-3.5 border-2 border-black/20 border-t-black rounded-full animate-spin" />
@@ -160,7 +158,7 @@ function WaitlistForm() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             className={`mt-3 text-xs font-mono text-center ${
-              status === "success" ? "text-emerald-400/70" : "text-red-400/70"
+              status === "success" ? "text-emerald-400/80" : "text-red-400/80"
             }`}
           >
             {message}
@@ -175,10 +173,13 @@ function WaitlistForm() {
           transition={{ delay: 0.3 }}
           className="mt-4 flex justify-center"
         >
-          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
-            <span className="w-1.5 h-1.5 bg-emerald-400/80 rounded-full animate-pulse" />
-            <span className="font-mono text-[10px] text-white/30">
-              <span className="text-white/60 font-semibold">{count.toLocaleString()}</span> joined
+          <span
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+          >
+            <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+            <span className="font-mono text-[10px] text-white/40">
+              <span className="text-white/70 font-semibold">{count.toLocaleString()}</span> joined
             </span>
           </span>
         </motion.div>
@@ -202,117 +203,97 @@ export default function LaunchPage() {
   }, [time.total]);
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden" style={{ background: "#000" }}>
-      {/* BlackHole — full-screen background */}
-      <div className="absolute inset-0 z-0">
+    <div className="relative w-screen h-screen overflow-hidden flex flex-col" style={{ background: "#000" }}>
+
+      {/* ─── Top: BlackHole hero (takes ~45% of viewport, clearly visible) ─── */}
+      <div className="relative flex-shrink-0 w-full" style={{ height: "45vh" }}>
         <BlackHole
-          particleCount={800}
+          particleCount={600}
           particleSize={3}
-          colors={["#ffffff", "#aaaaaa", "#666666"]}
-          outerRadius={85}
+          colors={["#ffffff", "#cccccc", "#888888"]}
+          outerRadius={80}
           tilt={25}
           tiltSideway={165}
-          trail={45}
+          trail={42}
           orbitSpeed={3}
           pullSpeed={1}
           showCenter={true}
-          centre={{ voidRadius: 35, voidX: 50, voidY: 50 }}
+          centre={{ voidRadius: 30, voidX: 50, voidY: 55 }}
+        />
+        {/* Fade to black at the bottom edge so it blends into content */}
+        <div
+          className="absolute bottom-0 left-0 right-0 h-24 pointer-events-none"
+          style={{ background: "linear-gradient(to bottom, transparent, #000)" }}
         />
       </div>
 
-      {/* Content overlay */}
-      <div className="relative z-10 flex flex-col items-center justify-center h-full px-6">
-        {/* Logo */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 1.2, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          className="mb-8"
-        >
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center"
-            style={{
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              backdropFilter: "blur(8px)",
-            }}
-          >
-            <svg className="w-7 h-7 text-white" viewBox="0 0 32 32" fill="none">
-              <path
-                d="M9 16h1.5M13 11v10M17 7v18M21 13v6M25 16h-1.5"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
-        </motion.div>
+      {/* ─── Bottom: Content (centered, readable, no overlap with particles) ─── */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 -mt-8">
 
         {/* Title */}
         <motion.h1
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          className="font-mono font-bold text-white text-4xl sm:text-5xl md:text-6xl tracking-tight mb-3 text-center"
+          transition={{ duration: 1, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          className="font-mono font-bold text-white text-3xl sm:text-4xl md:text-5xl tracking-tight mb-2 text-center"
         >
           moodwave
         </motion.h1>
 
         <motion.p
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, delay: 0.55, ease: [0.16, 1, 0.3, 1] }}
-          className="text-white/35 text-sm sm:text-base text-center max-w-xs leading-relaxed mb-12"
+          transition={{ duration: 1, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          className="text-white/40 text-sm text-center max-w-xs mb-10"
         >
           Your terminal&apos;s new soundtrack.
         </motion.p>
 
         {/* Countdown */}
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, delay: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className="flex items-start gap-2 sm:gap-3 md:gap-4 mb-4"
+          transition={{ duration: 1, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="flex items-start gap-2 sm:gap-3 md:gap-4 mb-3"
         >
           <CountdownUnit value={time.days} label="Days" />
-          <span className="text-white/10 text-2xl sm:text-3xl font-light mt-5 sm:mt-7">:</span>
+          <span className="text-white/15 text-2xl sm:text-3xl font-light mt-6 sm:mt-8">:</span>
           <CountdownUnit value={time.hours} label="Hours" />
-          <span className="text-white/10 text-2xl sm:text-3xl font-light mt-5 sm:mt-7">:</span>
+          <span className="text-white/15 text-2xl sm:text-3xl font-light mt-6 sm:mt-8">:</span>
           <CountdownUnit value={time.minutes} label="Min" />
-          <span className="text-white/10 text-2xl sm:text-3xl font-light mt-5 sm:mt-7">:</span>
+          <span className="text-white/15 text-2xl sm:text-3xl font-light mt-6 sm:mt-8">:</span>
           <CountdownUnit value={time.seconds} label="Sec" />
         </motion.div>
 
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 1 }}
-          className="font-mono text-[10px] text-white/15 uppercase tracking-[0.25em] mb-12"
+          transition={{ delay: 0.8 }}
+          className="font-mono text-[10px] text-white/20 uppercase tracking-[0.2em] mb-10"
         >
           Launching September 3, 2026
         </motion.p>
 
         {/* Waitlist */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, delay: 1.1, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 1, delay: 0.9, ease: [0.16, 1, 0.3, 1] }}
           className="w-full max-w-md"
         >
           <WaitlistForm />
         </motion.div>
       </div>
 
-      {/* Bottom subtle badge */}
-      <motion.div
+      {/* Footer */}
+      <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 2 }}
-        className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10"
+        transition={{ delay: 1.5 }}
+        className="absolute bottom-4 left-1/2 -translate-x-1/2 font-mono text-[9px] text-white/10 z-10"
       >
-        <span className="font-mono text-[9px] text-white/10">© 2026 moodwave</span>
-      </motion.div>
+        © 2026 moodwave
+      </motion.p>
     </div>
   );
 }
