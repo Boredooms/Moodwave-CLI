@@ -1,28 +1,35 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { kv } from "@vercel/kv";
+import { createClient } from "redis";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// /api/waitlist — Persistent waitlist backed by Vercel KV (Redis)
+// /api/waitlist — Persistent waitlist backed by Vercel Redis (redis-pink-dog)
+//
+// Uses the `redis` package with REDIS_URL env var. Globally consistent,
+// survives deployments, every device sees the same real-time count.
 //
 // POST — Submit an email (rate-limited, validated, deduped)
-// GET  — Returns the live count (same across all instances/devices)
-//
-// Data model in KV:
-//   "waitlist:emails"     → Redis Set of all registered emails
-//   "waitlist:entries"    → Redis List of JSON-stringified {email, ip, timestamp}
-//   "waitlist:ip:<ip>"   → Counter of signups from this IP (expires in 1h)
-//
-// Every device sees the same real-time count because KV is shared global
-// state, not per-instance /tmp files. Data survives deployments, cold starts,
-// and multi-instance scaling.
+// GET  — Returns the live count
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ── Redis client (singleton, lazy-connected) ────────────────────────────────
+
+let redisClient: ReturnType<typeof createClient> | null = null;
+
+async function getRedis() {
+  if (!redisClient) {
+    redisClient = createClient({ url: process.env.REDIS_URL });
+    redisClient.on("error", (err) => console.error("Redis error:", err));
+    await redisClient.connect();
+  }
+  return redisClient;
+}
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
-const RATE_LIMIT = 3;           // max signups per IP per hour
-const IP_MAX_TOTAL = 3;         // hard cap per IP ever
-const RATE_WINDOW_SECS = 3600;  // 1 hour TTL on rate limit key
+const RATE_LIMIT = 3;
+const IP_MAX_TOTAL = 3;
+const RATE_WINDOW_SECS = 3600;
 
 // ── Disposable email blocklist ──────────────────────────────────────────────
 
@@ -48,16 +55,17 @@ function isDisposableEmail(email: string): boolean {
 
 export async function POST(request: Request) {
   try {
+    const redis = await getRedis();
     const headersList = await headers();
     const ip =
       headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       headersList.get("x-real-ip") ||
       "unknown";
 
-    // Rate limit: check IP counter (auto-expires after 1 hour)
+    // Rate limit
     const rateLimitKey = `waitlist:ip:rate:${ip}`;
-    const currentRate = (await kv.get<number>(rateLimitKey)) || 0;
-    if (currentRate >= RATE_LIMIT) {
+    const currentRate = await redis.get(rateLimitKey);
+    if (currentRate && parseInt(currentRate) >= RATE_LIMIT) {
       return NextResponse.json(
         { error: "Too many attempts. Try again in an hour." },
         { status: 429 }
@@ -83,39 +91,39 @@ export async function POST(request: Request) {
     }
 
     // Check duplicate
-    const alreadyExists = await kv.sismember("waitlist:emails", email);
+    const alreadyExists = await redis.sIsMember("waitlist:emails", email);
     if (alreadyExists) {
-      const count = await kv.scard("waitlist:emails");
+      const count = await redis.sCard("waitlist:emails");
       return NextResponse.json(
         { message: "You're already on the list!", count, alreadyExists: true },
         { status: 200 }
       );
     }
 
-    // IP hard cap (total ever)
+    // IP hard cap
     const ipTotalKey = `waitlist:ip:total:${ip}`;
-    const ipTotal = (await kv.get<number>(ipTotalKey)) || 0;
-    if (ipTotal >= IP_MAX_TOTAL) {
+    const ipTotal = await redis.get(ipTotalKey);
+    if (ipTotal && parseInt(ipTotal) >= IP_MAX_TOTAL) {
       return NextResponse.json(
         { error: "Maximum signups reached for this network." },
         { status: 429 }
       );
     }
 
-    // Store the email
-    await kv.sadd("waitlist:emails", email);
-    await kv.rpush("waitlist:entries", JSON.stringify({
+    // Store
+    await redis.sAdd("waitlist:emails", email);
+    await redis.rPush("waitlist:entries", JSON.stringify({
       email,
       ip,
       timestamp: new Date().toISOString(),
     }));
 
-    // Increment rate limit (with TTL) and total IP counter
-    await kv.incr(rateLimitKey);
-    await kv.expire(rateLimitKey, RATE_WINDOW_SECS);
-    await kv.incr(ipTotalKey);
+    // Increment rate limit + total
+    await redis.incr(rateLimitKey);
+    await redis.expire(rateLimitKey, RATE_WINDOW_SECS);
+    await redis.incr(ipTotalKey);
 
-    const count = await kv.scard("waitlist:emails");
+    const count = await redis.sCard("waitlist:emails");
 
     return NextResponse.json(
       { message: "You're in! We'll let you know on launch day.", count },
@@ -130,11 +138,12 @@ export async function POST(request: Request) {
   }
 }
 
-// ── GET — live count (globally consistent) ──────────────────────────────────
+// ── GET — live count ────────────────────────────────────────────────────────
 
 export async function GET() {
   try {
-    const count = await kv.scard("waitlist:emails");
+    const redis = await getRedis();
+    const count = await redis.sCard("waitlist:emails");
     return NextResponse.json({ count: count || 0 }, { status: 200 });
   } catch {
     return NextResponse.json({ count: 0 }, { status: 200 });
