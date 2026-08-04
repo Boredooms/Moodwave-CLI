@@ -36,7 +36,7 @@ function CountdownUnit({ value, label }: { value: number; label: string }) {
 
   return (
     <div className="flex flex-col items-center gap-2.5">
-      <div className="relative w-[72px] h-[84px] sm:w-[88px] sm:h-[100px] md:w-[100px] md:h-[112px]">
+      <div className="relative w-[60px] h-[72px] sm:w-[88px] sm:h-[100px] md:w-[100px] md:h-[112px]">
         <AnimatePresence mode="popLayout">
           <motion.div
             key={display}
@@ -52,7 +52,7 @@ function CountdownUnit({ value, label }: { value: number; label: string }) {
               backfaceVisibility: "hidden",
             }}
           >
-            <span className="font-mono text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight">
+            <span className="font-mono text-2xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight">
               {display}
             </span>
           </motion.div>
@@ -208,7 +208,7 @@ export default function LaunchPage() {
       {/* ─── Top: BlackHole hero (takes ~45% of viewport, clearly visible) ─── */}
       <div className="relative flex-shrink-0 w-full" style={{ height: "45vh" }}>
         <BlackHole
-          particleCount={600}
+          particleCount={3000}
           particleSize={3}
           colors={["#ffffff", "#cccccc", "#888888"]}
           outerRadius={80}
@@ -286,14 +286,6 @@ export default function LaunchPage() {
       </div>
 
       {/* Footer */}
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.5 }}
-        className="absolute bottom-4 left-1/2 -translate-x-1/2 font-mono text-[9px] text-white/10 z-10"
-      >
-        © 2026 moodwave
-      </motion.p>
     </div>
   );
 }
