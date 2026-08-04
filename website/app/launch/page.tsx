@@ -255,10 +255,10 @@ export default function LaunchPage() {
   }, [time.total]);
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden flex flex-col" style={{ background: "#000" }}>
+    <div className="relative w-screen min-h-screen overflow-x-hidden flex flex-col" style={{ background: "#000" }}>
 
-      {/* ─── Top: BlackHole hero (takes ~45% of viewport, clearly visible) ─── */}
-      <div className="relative flex-shrink-0 w-full" style={{ height: "45vh" }}>
+      {/* ─── Top: BlackHole hero (takes ~40% of viewport, clearly visible) ─── */}
+      <div className="relative flex-shrink-0 w-full" style={{ height: "40vh", minHeight: "250px" }}>
         <BlackHole
           particleCount={3000}
           particleSize={3}
@@ -280,7 +280,7 @@ export default function LaunchPage() {
       </div>
 
       {/* ─── Bottom: Content (centered, readable, no overlap with particles) ─── */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 -mt-8">
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 -mt-8 pb-12">
 
         {/* Title */}
         <motion.h1
