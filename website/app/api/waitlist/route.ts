@@ -1,48 +1,28 @@
 import { NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
 import { headers } from "next/headers";
+import { kv } from "@vercel/kv";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// /api/waitlist
+// /api/waitlist — Persistent waitlist backed by Vercel KV (Redis)
 //
-// POST — Submit an email to the waitlist (rate-limited, validated, deduped)
-// GET  — Returns the current real waitlist count (live counter on launch page)
+// POST — Submit an email (rate-limited, validated, deduped)
+// GET  — Returns the live count (same across all instances/devices)
 //
-// Anti-fake protections:
-// 1. Rate limit: max 3 submissions per IP per hour (in-memory)
-// 2. Disposable email domain blocklist
-// 3. Email format validation
-// 4. Duplicate email rejection
-// 5. IP hard cap: max 3 registrations per IP ever (blocks bot farms)
-// 6. IP logged per entry for audit
+// Data model in KV:
+//   "waitlist:emails"     → Redis Set of all registered emails
+//   "waitlist:entries"    → Redis List of JSON-stringified {email, ip, timestamp}
+//   "waitlist:ip:<ip>"   → Counter of signups from this IP (expires in 1h)
 //
-// No external email service. Emails are stored — export on launch day.
-// For production persistence: swap JSON file with Vercel KV / Supabase.
+// Every device sees the same real-time count because KV is shared global
+// state, not per-instance /tmp files. Data survives deployments, cold starts,
+// and multi-instance scaling.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const WAITLIST_FILE =
-  process.env.NODE_ENV === "production"
-    ? "/tmp/waitlist.json"
-    : path.join(process.cwd(), "waitlist.json");
+// ── Config ──────────────────────────────────────────────────────────────────
 
-// ── Rate limiter ────────────────────────────────────────────────────────────
-
-const RATE_WINDOW_MS = 60 * 60 * 1000;
-const RATE_LIMIT = 3;
-const ipHits: Map<string, { count: number; windowStart: number }> = new Map();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = ipHits.get(ip);
-  if (!entry || now - entry.windowStart > RATE_WINDOW_MS) {
-    ipHits.set(ip, { count: 1, windowStart: now });
-    return false;
-  }
-  if (entry.count >= RATE_LIMIT) return true;
-  entry.count++;
-  return false;
-}
+const RATE_LIMIT = 3;           // max signups per IP per hour
+const IP_MAX_TOTAL = 3;         // hard cap per IP ever
+const RATE_WINDOW_SECS = 3600;  // 1 hour TTL on rate limit key
 
 // ── Disposable email blocklist ──────────────────────────────────────────────
 
@@ -64,27 +44,6 @@ function isDisposableEmail(email: string): boolean {
   return DISPOSABLE_DOMAINS.has(domain);
 }
 
-// ── Data ────────────────────────────────────────────────────────────────────
-
-interface WaitlistEntry {
-  email: string;
-  ip: string;
-  timestamp: string;
-}
-
-async function readWaitlist(): Promise<WaitlistEntry[]> {
-  try {
-    const data = await fs.readFile(WAITLIST_FILE, "utf-8");
-    return JSON.parse(data);
-  } catch {
-    return [];
-  }
-}
-
-async function writeWaitlist(entries: WaitlistEntry[]): Promise<void> {
-  await fs.writeFile(WAITLIST_FILE, JSON.stringify(entries, null, 2));
-}
-
 // ── POST ────────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
@@ -95,7 +54,10 @@ export async function POST(request: Request) {
       headersList.get("x-real-ip") ||
       "unknown";
 
-    if (isRateLimited(ip)) {
+    // Rate limit: check IP counter (auto-expires after 1 hour)
+    const rateLimitKey = `waitlist:ip:rate:${ip}`;
+    const currentRate = (await kv.get<number>(rateLimitKey)) || 0;
+    if (currentRate >= RATE_LIMIT) {
       return NextResponse.json(
         { error: "Too many attempts. Try again in an hour." },
         { status: 429 }
@@ -105,6 +67,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const email = body?.email?.trim()?.toLowerCase();
 
+    // Validate
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json(
         { error: "Please enter a valid email address." },
@@ -119,30 +82,47 @@ export async function POST(request: Request) {
       );
     }
 
-    const list = await readWaitlist();
-
-    if (list.some((entry) => entry.email === email)) {
+    // Check duplicate
+    const alreadyExists = await kv.sismember("waitlist:emails", email);
+    if (alreadyExists) {
+      const count = await kv.scard("waitlist:emails");
       return NextResponse.json(
-        { message: "You're already on the list!", count: list.length, alreadyExists: true },
+        { message: "You're already on the list!", count, alreadyExists: true },
         { status: 200 }
       );
     }
 
-    if (list.filter((entry) => entry.ip === ip).length >= 3) {
+    // IP hard cap (total ever)
+    const ipTotalKey = `waitlist:ip:total:${ip}`;
+    const ipTotal = (await kv.get<number>(ipTotalKey)) || 0;
+    if (ipTotal >= IP_MAX_TOTAL) {
       return NextResponse.json(
         { error: "Maximum signups reached for this network." },
         { status: 429 }
       );
     }
 
-    list.push({ email, ip, timestamp: new Date().toISOString() });
-    await writeWaitlist(list);
+    // Store the email
+    await kv.sadd("waitlist:emails", email);
+    await kv.rpush("waitlist:entries", JSON.stringify({
+      email,
+      ip,
+      timestamp: new Date().toISOString(),
+    }));
+
+    // Increment rate limit (with TTL) and total IP counter
+    await kv.incr(rateLimitKey);
+    await kv.expire(rateLimitKey, RATE_WINDOW_SECS);
+    await kv.incr(ipTotalKey);
+
+    const count = await kv.scard("waitlist:emails");
 
     return NextResponse.json(
-      { message: "You're in! We'll let you know on launch day.", count: list.length },
+      { message: "You're in! We'll let you know on launch day.", count },
       { status: 201 }
     );
-  } catch {
+  } catch (err) {
+    console.error("Waitlist POST error:", err);
     return NextResponse.json(
       { error: "Something went wrong. Try again." },
       { status: 500 }
@@ -150,12 +130,12 @@ export async function POST(request: Request) {
   }
 }
 
-// ── GET — live count ────────────────────────────────────────────────────────
+// ── GET — live count (globally consistent) ──────────────────────────────────
 
 export async function GET() {
   try {
-    const list = await readWaitlist();
-    return NextResponse.json({ count: list.length }, { status: 200 });
+    const count = await kv.scard("waitlist:emails");
+    return NextResponse.json({ count: count || 0 }, { status: 200 });
   } catch {
     return NextResponse.json({ count: 0 }, { status: 200 });
   }
