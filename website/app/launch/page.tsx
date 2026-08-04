@@ -188,6 +188,58 @@ function WaitlistForm() {
   );
 }
 
+// ─── Live Count Side Badge ──────────────────────────────────────────────────
+
+function LiveCountBadge() {
+  const [count, setCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const res = await fetch("/api/waitlist");
+        const data = await res.json();
+        if (typeof data.count === "number") setCount(data.count);
+      } catch { /* silent */ }
+    };
+    fetchCount();
+    const id = setInterval(fetchCount, 15000); // refresh every 15s
+    return () => clearInterval(id);
+  }, []);
+
+  if (count === null || count === 0) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.8, delay: 2, ease: [0.16, 1, 0.3, 1] }}
+      className="fixed top-6 right-6 z-50 hidden sm:block"
+    >
+      <div
+        className="flex items-center gap-3 px-4 py-3 rounded-xl"
+        style={{
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          backdropFilter: "blur(12px)",
+        }}
+      >
+        <div className="flex flex-col items-end">
+          <span className="font-mono text-lg font-bold text-white leading-none">
+            {count.toLocaleString()}
+          </span>
+          <span className="font-mono text-[9px] text-white/30 uppercase tracking-wider mt-1">
+            on waitlist
+          </span>
+        </div>
+        <div className="relative">
+          <span className="w-2.5 h-2.5 bg-emerald-400 rounded-full block" />
+          <span className="absolute inset-0 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping opacity-40" />
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 export default function LaunchPage() {
@@ -284,6 +336,9 @@ export default function LaunchPage() {
           <WaitlistForm />
         </motion.div>
       </div>
+
+      {/* ─── Fixed side badge: live waitlist count ─── */}
+      <LiveCountBadge />
 
       {/* Footer */}
     </div>
