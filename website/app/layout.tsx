@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Inter } from "next/font/google";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import LenisProvider from "../components/LenisProvider";
 import { GlobalJsonLd } from "../components/StructuredData";
+import { GA_ID } from "../lib/analytics";
 import "./globals.css";
 
 const inter = Inter({
@@ -108,6 +110,8 @@ export default function RootLayout({
       <body style={{ background: "#080808", color: "#fff", overflowX: "hidden" }}>
         <LenisProvider>{children}</LenisProvider>
       </body>
+      {/* Google Analytics 4 — loads after page interactive, zero LCP impact */}
+      {GA_ID && <GoogleAnalytics gaId={GA_ID} />}
     </html>
   );
 }
