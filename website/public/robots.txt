@@ -1,29 +1,4 @@
 User-agent: *
 Allow: /
 
-User-agent: Googlebot
-Allow: /
-
-User-agent: Google-InspectionTool
-Allow: /
-
-User-agent: GPTBot
-Allow: /
-
-User-agent: ClaudeBot
-Allow: /
-
-User-agent: PerplexityBot
-Allow: /
-
-User-agent: Applebot
-Allow: /
-
-User-agent: CCBot
-Allow: /
-
-User-agent: Google-Extended
-Allow: /
-
 Sitemap: https://www.moodwave-cli.xyz/sitemap.xml
-Host: https://www.moodwave-cli.xyz
