@@ -2,61 +2,101 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LAUNCH GATE — server-side middleware that blocks every route on the website
-// until the unlock timestamp. This runs on the edge before any page renders,
-// so no HTML, no JSON, no static asset for protected pages can be returned
-// before the launch date regardless of what URL, slug, or query parameter
-// someone tries. Not bypassable from the client: the decision is made before
-// the response exists.
+// LAUNCH GATE — server-side middleware that gates human browser traffic to
+// /launch until the launch unlock timestamp.
+//
+// Search engine crawlers (Googlebot, Bingbot, Google-InspectionTool, GPTBot,
+// ClaudeBot, PerplexityBot, etc.) and SEO metadata assets (robots.txt,
+// sitemap.xml, llms.txt, etc.) are ALWAYS allowed through so Google Search
+// Console and AI engines can crawl, verify, index, and build rich snippets.
 //
 // Unlock: September 3, 2026 at 06:00 AM IST (UTC+05:30) → 00:30 UTC
 // ─────────────────────────────────────────────────────────────────────────────
 
 const UNLOCK_UTC = new Date("2026-09-03T00:30:00Z"); // 06:00 AM IST
 
-// Paths that are ALWAYS accessible (the launch page itself, its assets,
-// SEO robots, sitemaps, LLM discovery context, and the waitlist API route).
-// Everything else is gated until launch unlock.
-const ALLOWED = [
-  "/launch",           // the countdown page
-  "/api/waitlist",     // the email submission endpoint
-  "/_next",            // Next.js internal assets (JS chunks, images, etc.)
+// Known search crawler and inspection bot user-agent tokens
+const BOT_USER_AGENTS = [
+  "googlebot",
+  "google-inspectiontool",
+  "google-site-verification",
+  "google-structured-data-testing-tool",
+  "mediapartners-google",
+  "adsbot-google",
+  "feedfetcher-google",
+  "bingbot",
+  "bingpreview",
+  "msnbot",
+  "yandex",
+  "duckduckbot",
+  "baiduspider",
+  "slurp",
+  "twitterbot",
+  "facebookexternalhit",
+  "linkedinbot",
+  "whatsapp",
+  "telegrambot",
+  "discordbot",
+  "applebot",
+  "gptbot",
+  "claudebot",
+  "perplexitybot",
+  "google-extended",
+  "ccbot",
+  "bytespider",
+  "screaming frog",
+  "lighthouse",
+];
+
+// Paths that are ALWAYS accessible for everyone (launch page, assets, APIs, SEO files)
+const ALLOWED_EXACT_OR_PREFIX = [
+  "/launch",
+  "/api/waitlist",
+  "/_next",
   "/favicon.ico",
   "/icon.svg",
   "/logo.svg",
-  "/robots.txt",       // Search engine crawler instructions
-  "/sitemap.xml",      // XML Sitemap for Google/Bing indexing
-  "/sitemap",          // Next.js sitemap route
-  "/llms.txt",         // Standard AI / LLM summary context
-  "/llms-full.txt",    // Standard AI / LLM full reference context
-  "/site.webmanifest", // Web application manifest
-  "/opengraph-image",  // Dynamic OpenGraph social card
-  "/twitter-image",    // Dynamic Twitter preview card
+  "/robots.txt",
+  "/sitemap.xml",
+  "/sitemap",
+  "/llms.txt",
+  "/llms-full.txt",
+  "/site.webmanifest",
+  "/opengraph-image",
+  "/twitter-image",
 ];
 
 export function middleware(request: NextRequest) {
   const now = new Date();
 
-  // After the unlock timestamp, the gate disappears forever — no redirect,
-  // no launch page, nothing. The middleware becomes a transparent pass-through.
+  // 1. After unlock, pass through everything
   if (now >= UNLOCK_UTC) {
     return NextResponse.next();
   }
 
   const { pathname } = request.nextUrl;
 
-  // Allow the launch page itself and its dependencies through.
-  if (ALLOWED.some((prefix) => pathname.startsWith(prefix))) {
+  // 2. Allow explicitly whitelisted routes (launch page, static assets, sitemaps, robots, llms)
+  if (ALLOWED_EXACT_OR_PREFIX.some((p) => pathname === p || pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
-  // Everything else → redirect to the launch/countdown page.
+  // 3. Allow search engine crawlers and inspection bots to crawl pages for SEO indexing
+  const userAgent = (request.headers.get("user-agent") || "").toLowerCase();
+  const isSearchCrawler = BOT_USER_AGENTS.some((bot) => userAgent.includes(bot));
+  if (isSearchCrawler) {
+    return NextResponse.next();
+  }
+
+  // 4. Redirect human browser traffic to the launch countdown page
   const url = request.nextUrl.clone();
   url.pathname = "/launch";
   return NextResponse.redirect(url);
 }
 
-// Match all routes. The function above decides which ones pass through.
+// Match all routes except Next.js internal static assets
 export const config = {
-  matcher: ["/((?!_next/static|_next/image).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|icon.svg|logo.svg|robots.txt|sitemap.xml|llms.txt|llms-full.txt|site.webmanifest).*)",
+  ],
 };
