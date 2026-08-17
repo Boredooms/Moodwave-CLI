@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://www.moodwave-cli.xyz/sitemap.xml
