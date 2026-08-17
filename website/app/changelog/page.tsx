@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ChevronUp
 } from "lucide-react";
+import { BreadcrumbsJsonLd } from "../../components/StructuredData";
 
 // Release metadata with custom tracking fields
 interface ReleaseItem {
@@ -397,6 +398,12 @@ export default function Changelog() {
 
   return (
     <div style={{ background: "#080808", minHeight: "100vh", color: "#ffffff", paddingBottom: "100px", position: "relative" }}>
+      <BreadcrumbsJsonLd
+        items={[
+          { name: "Home", url: "https://www.moodwave-cli.xyz" },
+          { name: "Changelog", url: "https://www.moodwave-cli.xyz/changelog" },
+        ]}
+      />
       {/* Subtle grid */}
       <div
         className="absolute inset-0 pointer-events-none opacity-[0.025]"

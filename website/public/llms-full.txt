@@ -1,0 +1,204 @@
+# Moodwave CLI — Complete Technical Specification & Documentation
+
+> Full context documentation for AI assistants, agents, LLMs, and search systems.
+> Official Domain: https://www.moodwave-cli.xyz/
+> GitHub: https://github.com/Boredooms/Moodwave-CLI
+
+---
+
+## 1. Executive Summary & Purpose
+
+Moodwave is a developer-centric CLI tool written in Go that solves audio decision fatigue while coding. Rather than manually curating playlists or switching between apps, developers invoke Moodwave in their terminal. Moodwave inspects the active project directory, extracts cognitive signals (code churn, test ratios, git commit velocity, language complexity, comment density, and TODO spikes), runs them through a deterministic heuristics engine to classify the developer's state into one of 10 mood profiles, and immediately streams matching music directly into the shell.
+
+---
+
+## 2. System Architecture
+
+```
+                  ┌─────────────────────────────────────┐
+                  │          Codebase Workspace         │
+                  └──────────────────┬──────────────────┘
+                                     │ (Files, Git, TODOs)
+                                     ▼
+                  ┌─────────────────────────────────────┐
+                  │ 01. Workspace Scanner               │
+                  └──────────────────┬──────────────────┘
+                                     │ (Language metrics, git tree depth)
+                                     ▼
+                  ┌─────────────────────────────────────┐
+                  │ 02. Weighted Heuristics Mood Engine │
+                  └──────────────────┬──────────────────┘
+                                     │ (10 Developer Mood Profiles)
+                                     ▼
+                  ┌─────────────────────────────────────┐
+                  │ 03. Tag-Based Recommender           │
+                  └──────────────────┬──────────────────┘
+                                     │ (BPM range, Tag overlap, History)
+                                     ▼
+         ┌───────────────────────────┼───────────────────────────┐
+         ▼                           ▼                           ▼
+┌──────────────────┐       ┌──────────────────┐        ┌──────────────────┐
+│ YouTube (yt-dlp) │       │ Radio Browser API│        │   Jamendo API    │
+└────────┬─────────┘       └────────┬─────────┘        └────────┬─────────┘
+         │                          │                           │
+         └──────────────────────────┼───────────────────────────┘
+                                    ▼
+                  ┌─────────────────────────────────────┐
+                  │ 04. Playback Controller (mpv/ffplay)│
+                  └──────────────────┬──────────────────┘
+                                     │ (HTTP Range Resume & Stream)
+                                     ▼
+                  ┌─────────────────────────────────────┐
+                  │ 05. Bubble Tea TUI + Visualizers    │
+                  └──────────────────┬──────────────────┘
+                                     │ (Fire, Matrix, Spectrum, Plasma...)
+                                     ▼
+                  ┌─────────────────────────────────────┐
+                  │          Developer Terminal         │
+                  └─────────────────────────────────────┘
+```
+
+### Component Breakdown
+
+1. **Workspace Scanner (`internal/scanner`)**:
+   - Performs concurrent filesystem traversal skipping common heavy/vendor directories (`.git`, `node_modules`, `vendor`, `target`, `build`, `dist`, `.next`, `AppData`, `OneDrive`).
+   - Counts file extension distributions (Go, Rust, TypeScript, Python, C++, etc.).
+   - Computes TODO, FIXME, BUG, and HACK comment frequency.
+   - Extracts git signals via `internal/git` (commit churn, dirty index state, branch switch count).
+
+2. **Mood Inference Engine (`internal/mood`)**:
+   - Evaluates signal weights to produce a composite confidence score.
+   - Supported Developer Moods:
+     - `focused`: Clean code, steady git flow, low TODO ratio -> Minimalist Techno, Lofi, Synthwave (90-120 BPM).
+     - `calm`: Documentation, minor refactors -> Ambient, Piano, Acoustic (60-80 BPM).
+     - `intense`: High-velocity commits, rapid edits -> Drum & Bass, Breakcore, Cyberpunk (140-175 BPM).
+     - `chaotic`: Multiple modified files, merge conflicts, high TODO count -> Industrial, Post-Rock, Heavy Electronic.
+     - `sprint`: Pre-release activity, test execution spikes -> Upbeat Synthwave, Melodic House (120-130 BPM).
+     - `debugging`: Error handling edits, high stack trace comments -> Dark Ambient, Deep Techno (80-110 BPM).
+     - `chill`: Exploration, reading PRs -> Downtempo, Chillhop, Jazzhop.
+     - `late-night`: Commits past 11 PM, high line count -> Synthwave, Vaporwave, Nocturnal Ambient.
+     - `flow`: Steady linear commits, balanced test-to-code ratio -> Progressive Trance, Melodic Techno.
+     - `ambient`: Zero git activity, exploratory mode -> Drone, Nature Sounds, Soundscapes.
+
+3. **Recommender Engine (`internal/recommender`)**:
+   - Queries source registries using target mood traits (BPM bounds, genre tags, energy scores).
+   - Manages recommendation history to avoid duplicates and overplayed tracks.
+
+4. **Audio Playback Subsystem (`internal/player`)**:
+   - Adapters for `mpv`, `ffplay` (ffmpeg), `afplay` (macOS CoreAudio), and native Windows Media Foundation.
+   - Auto-downloads static `ffplay` binary into local cache if no audio player exists.
+   - `moodwave doctor` diagnoses available audio drivers and network paths.
+
+5. **Bubble Tea TUI (`internal/tui`)**:
+   - Built on Charmbracelet's Bubble Tea framework.
+   - Decoupled event loop prevents audio buffering from freezing terminal interactions.
+   - 20+ dynamic terminal visualizers: Doom-style Fire, Digital Rain Matrix, Frequency Spectrum, Plasma Waves, Aurora Borealis, DNA Double Helix, Campfire, Starfield, Audio Pulses.
+   - 7 curated themes: `midnight`, `dracula`, `nord`, `tokyonight`, `gruvbox`, `catppuccin`, `solarized`.
+
+---
+
+## 3. Installation & Verification
+
+### Zero-Dependency Installers
+
+#### Windows (PowerShell 5.1+)
+```powershell
+irm https://raw.githubusercontent.com/Boredooms/Moodwave-CLI/main/cli/scripts/install.ps1 | iex
+```
+
+#### macOS & Linux (Bash / Zsh)
+```bash
+curl -fsSL https://raw.githubusercontent.com/Boredooms/Moodwave-CLI/main/cli/scripts/install.sh | bash
+```
+
+### Verification & First Run
+```bash
+moodwave doctor   # Verify audio backends, network access, and terminal UTF-8/color support
+moodwave init     # Create config at ~/.config/moodwave/config.json (%APPDATA%\moodwave\config.json)
+moodwave          # Launch interactive TUI
+```
+
+---
+
+## 4. CLI Subcommand Reference
+
+| Command | Syntax | Description |
+|---|---|---|
+| `moodwave` | `moodwave` | Launch the main interactive Bubble Tea TUI |
+| `moodwave init` | `moodwave init [--force]` | Initialize config file and local cache folders |
+| `moodwave doctor` | `moodwave doctor [--fix]` | Run full system capability diagnosis and auto-fix backends |
+| `moodwave scan` | `moodwave scan [path]` | Scan directory and output mood heuristics report |
+| `moodwave mood` | `moodwave mood` | Print the last cached mood state without scanning |
+| `moodwave play` | `moodwave play [mood]` | Stream audio matched to active or specified mood |
+| `moodwave search` | `moodwave search <query>` | Query YouTube directly and play selected stream |
+| `moodwave queue` | `moodwave queue` | Display active track queue and playback position |
+| `moodwave next` | `moodwave next` | Skip currently playing track |
+| `moodwave status` | `moodwave status` | Print CLI version, backend status, and current song |
+| `moodwave config` | `moodwave config [--edit]` | Output resolved config as JSON or open in default editor |
+| `moodwave theme` | `moodwave theme [name]` | List or set active terminal color theme |
+| `moodwave visual` | `moodwave visual [mode]` | List or set terminal visualizer mode |
+| `moodwave source` | `moodwave source` | Inspect status of YouTube, Jamendo, and Radio Browser APIs |
+| `moodwave update` | `moodwave update` | Download and apply latest GitHub binary release in-place |
+
+---
+
+## 5. Keyboard Navigation in Interactive TUI
+
+- `↑` / `↓` / `j` / `k`: Move selection up and down
+- `Enter`: Play selected item or activate menu option
+- `Space`: Pause / Resume playback
+- `N`: Next track / Skip
+- `L`: Cycle playback loop mode (`off` -> `one` -> `all`)
+- `P`: Open Live Queue
+- `O`: Open Curated Personal Playlist
+- `A`: Add track to playlist (via search)
+- `D`: Remove selected track from playlist
+- `C`: Clear entire personal playlist
+- `T`: Open Live Theme Preview Selector
+- `V`: Cycle through 20+ live visualizer algorithms
+- `U`: Trigger in-app upgrade if a newer version is available
+- `Q` / `Esc`: Back / Quit
+
+---
+
+## 6. Environment Variables
+
+| Variable | Type | Description |
+|---|---|---|
+| `MOODWAVE_THEME` | string | Override default theme (`midnight`, `dracula`, `nord`, `tokyonight`, `gruvbox`, `catppuccin`, `solarized`) |
+| `MOODWAVE_VISUAL` | string | Override visualizer (`fire`, `matrix`, `spectrum`, `plasma`, `aurora`, `pulse`, etc.) |
+| `MOODWAVE_BACKEND` | string | Force audio backend (`mpv`, `ffplay`, `afplay`, `windows`) |
+| `MOODWAVE_VOLUME` | integer | Default volume from `0` to `100` |
+| `MOODWAVE_NO_COLOR` | flag (`1`/`true`) | Disable ANSI color sequences |
+| `MOODWAVE_NO_ANIMATION`| flag (`1`/`true`) | Disable dynamic visualizer ticks for slow SSH / low-spec terminals |
+| `MOODWAVE_DEBUG` | flag (`1`/`true`) | Enable verbose diagnostic logging to stdout or cache logfile |
+| `JAMENDO_CLIENT_ID` | string | Optional custom API key for Jamendo Creative Commons music catalog |
+
+---
+
+## 7. File Locations
+
+### Windows
+- Config: `%APPDATA%\moodwave\config.json`
+- Cache & Binary: `%LOCALAPPDATA%\moodwave\`
+
+### macOS
+- Config: `~/.config/moodwave/config.json`
+- Cache: `~/Library/Caches/moodwave/`
+
+### Linux
+- Config: `~/.config/moodwave/config.json`
+- Cache: `~/.cache/moodwave/`
+
+---
+
+## 8. Web Resources & Canonical Pointers
+
+- **Homepage**: https://www.moodwave-cli.xyz/
+- **Documentation**: https://www.moodwave-cli.xyz/docs
+- **Changelog**: https://www.moodwave-cli.xyz/changelog
+- **Launch Countdown**: https://www.moodwave-cli.xyz/launch
+- **Sitemap**: https://www.moodwave-cli.xyz/sitemap.xml
+- **Robots**: https://www.moodwave-cli.xyz/robots.txt
+- **LLM Manifest**: https://www.moodwave-cli.xyz/llms.txt
+- **GitHub**: https://github.com/Boredooms/Moodwave-CLI

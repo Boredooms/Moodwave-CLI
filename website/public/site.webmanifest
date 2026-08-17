@@ -1,0 +1,22 @@
+{
+  "name": "Moodwave — Terminal Mood Music Companion",
+  "short_name": "Moodwave",
+  "description": "Moodwave scans your codebase, infers your working mood, and streams matching music right in your terminal.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080808",
+  "theme_color": "#080808",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

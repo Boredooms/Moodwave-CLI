@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import BlackHole from "@/components/originkit/ui/blackhole";
+import { BreadcrumbsJsonLd } from "@/components/StructuredData";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LAUNCH PAGE — BlackHole visible at the top, content clearly readable below
@@ -256,6 +257,12 @@ export default function LaunchPage() {
 
   return (
     <div className="relative w-screen min-h-screen overflow-x-hidden flex flex-col" style={{ background: "#000" }}>
+      <BreadcrumbsJsonLd
+        items={[
+          { name: "Home", url: "https://www.moodwave-cli.xyz" },
+          { name: "Launch", url: "https://www.moodwave-cli.xyz/launch" },
+        ]}
+      />
 
       {/* ─── Top: BlackHole hero (takes ~40% of viewport, clearly visible) ─── */}
       <div className="relative flex-shrink-0 w-full" style={{ height: "40vh", minHeight: "250px" }}>

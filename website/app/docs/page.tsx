@@ -16,6 +16,7 @@ import {
   Activity,
   Stethoscope,
 } from "lucide-react";
+import { BreadcrumbsJsonLd } from "../../components/StructuredData";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Platform-specific setup docs — Windows / macOS / Linux
@@ -139,6 +140,12 @@ export default function Docs() {
 
   return (
     <div style={{ background: "#080808", minHeight: "100vh", color: "#ffffff", paddingBottom: "100px", position: "relative" }}>
+      <BreadcrumbsJsonLd
+        items={[
+          { name: "Home", url: "https://www.moodwave-cli.xyz" },
+          { name: "Docs", url: "https://www.moodwave-cli.xyz/docs" },
+        ]}
+      />
       <div
         className="absolute inset-0 pointer-events-none opacity-[0.025]"
         style={{

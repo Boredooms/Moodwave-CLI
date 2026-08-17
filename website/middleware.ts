@@ -14,15 +14,24 @@ import type { NextRequest } from "next/server";
 
 const UNLOCK_UTC = new Date("2026-09-03T00:30:00Z"); // 06:00 AM IST
 
-// Paths that are ALWAYS accessible (the launch page itself, its assets, and
-// the waitlist API route). Everything else is gated.
+// Paths that are ALWAYS accessible (the launch page itself, its assets,
+// SEO robots, sitemaps, LLM discovery context, and the waitlist API route).
+// Everything else is gated until launch unlock.
 const ALLOWED = [
-  "/launch",        // the countdown page
-  "/api/waitlist",  // the email submission endpoint
-  "/_next",         // Next.js internal assets (JS chunks, images, etc.)
+  "/launch",           // the countdown page
+  "/api/waitlist",     // the email submission endpoint
+  "/_next",            // Next.js internal assets (JS chunks, images, etc.)
   "/favicon.ico",
   "/icon.svg",
   "/logo.svg",
+  "/robots.txt",       // Search engine crawler instructions
+  "/sitemap.xml",      // XML Sitemap for Google/Bing indexing
+  "/sitemap",          // Next.js sitemap route
+  "/llms.txt",         // Standard AI / LLM summary context
+  "/llms-full.txt",    // Standard AI / LLM full reference context
+  "/site.webmanifest", // Web application manifest
+  "/opengraph-image",  // Dynamic OpenGraph social card
+  "/twitter-image",    // Dynamic Twitter preview card
 ];
 
 export function middleware(request: NextRequest) {

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Inter } from "next/font/google";
 import LenisProvider from "../components/LenisProvider";
+import { GlobalJsonLd } from "../components/StructuredData";
 import "./globals.css";
 
 const inter = Inter({
@@ -15,20 +16,83 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+const baseUrl = "https://www.moodwave-cli.xyz";
+
 export const metadata: Metadata = {
-  title: "Moodwave — Terminal Mood Music Companion",
+  metadataBase: new URL(baseUrl),
+  title: {
+    default: "Moodwave — Terminal Mood Music Companion",
+    template: "%s | Moodwave CLI",
+  },
   description:
-    "Moodwave scans your codebase, infers your working mood, and streams perfectly matched music right in your terminal. CLI-first. Lightweight. Open source.",
-  keywords: ["cli", "terminal", "music player", "developer tools", "mood detection", "youtube cli"],
+    "Moodwave scans your codebase, infers your working mood across 10 developer states, and streams perfectly matched music right in your terminal. CLI-first, lightweight, open source.",
+  keywords: [
+    "moodwave",
+    "moodwave-cli",
+    "cli music player",
+    "terminal music companion",
+    "developer tools",
+    "codebase mood scan",
+    "youtube cli",
+    "bubble tea tui",
+    "terminal visualizer",
+    "golang cli",
+    "radio browser cli",
+    "developer productivity",
+  ],
+  authors: [{ name: "Boredooms", url: "https://github.com/Boredooms" }],
+  creator: "Boredooms",
+  publisher: "Moodwave",
+  applicationName: "Moodwave",
+  alternates: {
+    canonical: baseUrl,
+  },
+  manifest: "/site.webmanifest",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/logo.svg", type: "image/svg+xml" },
+    ],
+    apple: "/logo.svg",
+    shortcut: "/icon.svg",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
   openGraph: {
-    title: "Moodwave — Terminal Mood Music Companion",
-    description: "A CLI that scans your codebase and plays music that matches your mood.",
     type: "website",
+    locale: "en_US",
+    url: baseUrl,
+    siteName: "Moodwave",
+    title: "Moodwave — Terminal Mood Music Companion",
+    description:
+      "A CLI that scans your codebase, infers your cognitive mood, and streams music that matches your state directly into your shell.",
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "Moodwave — Terminal Mood Music Companion",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Moodwave — Terminal Mood Music Companion",
+    description:
+      "A CLI that scans your codebase, infers your cognitive mood, and streams music that matches your state directly into your shell.",
+    images: ["/opengraph-image"],
+    creator: "@moodwave_cli",
   },
+  category: "technology",
 };
 
 export default function RootLayout({
@@ -38,9 +102,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+      <head>
+        <GlobalJsonLd />
+      </head>
       <body style={{ background: "#080808", color: "#fff", overflowX: "hidden" }}>
         <LenisProvider>{children}</LenisProvider>
       </body>
     </html>
   );
 }
+

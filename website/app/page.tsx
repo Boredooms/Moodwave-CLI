@@ -8,6 +8,7 @@ import Architecture from "../components/Architecture";
 import Installation from "../components/Installation";
 import FAQ from "../components/FAQ";
 import CTA from "../components/CTA";
+import { FAQJsonLd } from "../components/StructuredData";
 
 async function getLatestVersion() {
   try {
@@ -35,6 +36,7 @@ export default async function Home() {
 
   return (
     <main style={{ background: "#080808", minHeight: "100vh", overflowX: "hidden" }}>
+      <FAQJsonLd />
       <Nav version={version} />
       <Hero version={version} />
       <WhySection />

@@ -1,0 +1,56 @@
+# Moodwave CLI
+
+> Moodwave is a lightweight, terminal-native developer mood music companion. It scans your codebase, extracts cognitive and workspace signals, infers your coding mood profile across 10 developer states, and streams matching audio directly inside your shell.
+
+## Key Information
+
+- **Website**: https://www.moodwave-cli.xyz/
+- **Documentation**: https://www.moodwave-cli.xyz/docs
+- **Changelog**: https://www.moodwave-cli.xyz/changelog
+- **Launch & Waitlist**: https://www.moodwave-cli.xyz/launch
+- **GitHub Repository**: https://github.com/Boredooms/Moodwave-CLI
+- **License**: MIT
+- **Primary Technologies**: Go (Bubble Tea TUI), Next.js (Website), yt-dlp, Jamendo API, Radio Browser API, mpv, ffplay, afplay
+
+## Core Capabilities
+
+1. **Workspace Mood Scanner**: Analyzes file compositions, TODO/FIXME density, git churn markers, and folder structure without reading proprietary code content.
+2. **Weighted Heuristics Mood Engine**: Maps cognitive signals to 10 distinct developer moods (`focused`, `calm`, `intense`, `chaotic`, `sprint`, `debugging`, `chill`, `late-night`, `flow`, `ambient`).
+3. **Multi-Source Audio Streaming**: Streams high-fidelity music from YouTube (via yt-dlp), Jamendo (Creative Commons catalog), and 30,000+ Internet Radio stations without requiring personal API keys.
+4. **Bubble Tea Terminal UI (TUI)**: Async message-driven architecture with 20+ dynamic terminal visualizers (fire, matrix, plasma, aurora, starfield, etc.) and 7 switchable color themes (Midnight, Dracula, Nord, Tokyo Night, Gruvbox, Catppuccin, Solarized).
+5. **Zero Dependencies & Self-Updating**: Single compiled static Go binary (~8 MB) for Windows, macOS, and Linux with built-in self-update mechanism (`moodwave update` or in-TUI key `U`).
+
+## Quick Installation
+
+### Windows (PowerShell)
+```powershell
+irm https://raw.githubusercontent.com/Boredooms/Moodwave-CLI/main/cli/scripts/install.ps1 | iex
+```
+
+### macOS & Linux
+```bash
+curl -fsSL https://raw.githubusercontent.com/Boredooms/Moodwave-CLI/main/cli/scripts/install.sh | bash
+```
+
+## Essential CLI Commands
+
+- `moodwave` - Launch the interactive Bubble Tea TUI
+- `moodwave doctor` - Run diagnostic check for audio backends, terminal capabilities, and source connectivity
+- `moodwave init` - Initialize configuration and cache paths
+- `moodwave scan [path]` - Scan repository and show inferred mood metrics
+- `moodwave mood` - Display current mood profile and audio traits without re-scanning
+- `moodwave play` - Start streaming audio matched to current coding mood
+- `moodwave search <query>` - Search YouTube directly and play selected stream
+- `moodwave queue` - Show current recommendation queue
+- `moodwave next` - Skip to the next recommendation track
+- `moodwave status` - View active playback and CLI status
+- `moodwave theme <name>` - Switch visual color theme
+- `moodwave visual <mode>` - Switch terminal visualizer mode
+- `moodwave update` - Upgrade binary in place to the latest GitHub release
+
+## Detailed Context & Full Documentation
+
+For full architecture diagrams, algorithm heuristics, source adapter specs, and environment variables, refer to:
+- [Full LLM Documentation](https://www.moodwave-cli.xyz/llms-full.txt)
+- [Web Documentation](https://www.moodwave-cli.xyz/docs)
+- [GitHub Releases](https://github.com/Boredooms/Moodwave-CLI/releases)
