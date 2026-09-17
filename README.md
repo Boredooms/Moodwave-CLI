@@ -3,7 +3,7 @@
 > **A terminal-native developer mood music companion.**
 
 <p align="left">
-  <img src="./website/public/logo.svg" width="80" height="80" alt="Moodwave Logo" />
+  <img src="./website/public/logo.svg" width="80" height="80" alt="Moodwavee Logo" />
 </p>
 
 [![CI](https://github.com/Boredooms/Moodwave-CLI/actions/workflows/ci.yml/badge.svg)](https://github.com/Boredooms/Moodwave-CLI/actions/workflows/ci.yml)
